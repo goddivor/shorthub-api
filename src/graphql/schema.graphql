@@ -1,0 +1,517 @@
+# ============================================
+# SCALARS
+# ============================================
+
+scalar DateTime
+scalar JSON
+
+# ============================================
+# ENUMS
+# ============================================
+
+enum UserRole {
+  ADMIN
+  VIDEASTE
+  ASSISTANT
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum ChannelLanguage {
+  VF
+  VA
+  VOSTFR
+  VOSTA
+  VO
+}
+
+enum ChannelCountry {
+  USA
+  FRANCE
+  OTHER
+}
+
+enum EditType {
+  SANS_EDIT
+  AVEC_EDIT
+}
+
+enum ChannelPurpose {
+  SOURCE
+  PUBLICATION
+}
+
+enum ChannelType {
+  MIX
+  ONLY
+}
+
+enum VideoStatus {
+  ROLLED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  VALIDATED
+  PUBLISHED
+  REJECTED
+}
+
+enum NotificationType {
+  VIDEO_ASSIGNED
+  DEADLINE_REMINDER
+  VIDEO_COMPLETED
+  VIDEO_VALIDATED
+  VIDEO_REJECTED
+  ACCOUNT_BLOCKED
+  ACCOUNT_UNBLOCKED
+}
+
+# ============================================
+# TYPES
+# ============================================
+
+type User {
+  id: ID!
+  username: String!
+  email: String!
+  role: UserRole!
+  status: UserStatus!
+  phone: String
+  whatsappLinked: Boolean!
+  emailNotifications: Boolean!
+  whatsappNotifications: Boolean!
+  createdBy: User
+  assignedTo: User
+  videosAssigned: [Video!]!
+  publicationChannels: [Channel!]!
+  stats: UserStats!
+  profileImage: String
+  lastLogin: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type UserStats {
+  totalVideosAssigned: Int!
+  totalVideosCompleted: Int!
+  totalVideosInProgress: Int!
+  completionRate: Float!
+  averageCompletionTime: Float
+  videosCompletedThisMonth: Int!
+  videosLate: Int!
+  videosOnTime: Int!
+}
+
+type Channel {
+  id: ID!
+  youtubeUrl: String!
+  channelId: String!
+  username: String!
+  subscriberCount: Int!
+  language: ChannelLanguage!
+  country: ChannelCountry
+  editType: EditType
+  channelPurpose: ChannelPurpose!
+  type: ChannelType!
+  domain: String
+  ownedBy: User
+  videosFromChannel: [Video!]!
+  videosToChannel: [Video!]!
+  subscriberHistory: [SubscriberHistoryEntry!]!
+  stats: ChannelStats!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type SubscriberHistoryEntry {
+  count: Int!
+  date: DateTime!
+}
+
+type ChannelStats {
+  totalVideosRolled: Int!
+  totalVideosPublished: Int!
+  subscriberGrowthLast30Days: Int!
+  subscriberGrowthRate: Float
+}
+
+type Video {
+  id: ID!
+  sourceChannel: Channel!
+  sourceVideoUrl: String!
+  rolledAt: DateTime!
+  assignedTo: User
+  assignedBy: User
+  assignedAt: DateTime
+  publicationChannel: Channel
+  scheduledDate: DateTime
+  status: VideoStatus!
+  completedAt: DateTime
+  validatedAt: DateTime
+  publishedAt: DateTime
+  title: String
+  description: String
+  tags: [String!]!
+  notes: String
+  adminFeedback: String
+  comments: [VideoComment!]!
+  notifications: [Notification!]!
+  isLate: Boolean!
+  daysUntilDeadline: Int
+  timeToComplete: Float
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type VideoComment {
+  id: ID!
+  video: Video!
+  author: User!
+  comment: String!
+  createdAt: DateTime!
+}
+
+type Notification {
+  id: ID!
+  recipient: User!
+  type: NotificationType!
+  video: Video
+  message: String!
+  sentViaEmail: Boolean!
+  sentViaWhatsApp: Boolean!
+  emailSentAt: DateTime
+  whatsappSentAt: DateTime
+  read: Boolean!
+  readAt: DateTime
+  createdAt: DateTime!
+}
+
+type ActivityLog {
+  id: ID!
+  user: User!
+  action: String!
+  resourceType: String!
+  resourceId: ID!
+  details: JSON
+  ipAddress: String
+  createdAt: DateTime!
+}
+
+# ============================================
+# ANALYTICS
+# ============================================
+
+type DashboardAnalytics {
+  totalChannels: Int!
+  totalSourceChannels: Int!
+  totalPublicationChannels: Int!
+  totalVideos: Int!
+  totalUsers: Int!
+  videosRolled: Int!
+  videosAssigned: Int!
+  videosInProgress: Int!
+  videosCompleted: Int!
+  videosValidated: Int!
+  videosPublished: Int!
+  videosRejected: Int!
+  videosLate: Int!
+  videosCompletedLast7Days: [DailyVideoCount!]!
+  videosCompletedLast30Days: [DailyVideoCount!]!
+  averageCompletionTime: Float!
+  completionRate: Float!
+  topVideastes: [VideoastePerformance!]!
+  totalSubscribers: Int!
+  subscriberGrowthLast30Days: Int!
+  channelsGrowth: [ChannelGrowth!]!
+}
+
+type DailyVideoCount {
+  date: String!
+  count: Int!
+}
+
+type VideoastePerformance {
+  user: User!
+  videosCompleted: Int!
+  completionRate: Float!
+  averageTime: Float!
+}
+
+type ChannelGrowth {
+  channel: Channel!
+  subscriberCount: Int!
+  growth30Days: Int!
+  growthRate: Float!
+}
+
+# ============================================
+# INPUTS
+# ============================================
+
+input CreateUserInput {
+  username: String!
+  email: String!
+  password: String!
+  role: UserRole!
+  phone: String
+  whatsappLinked: Boolean
+  emailNotifications: Boolean
+  whatsappNotifications: Boolean
+}
+
+input UpdateUserInput {
+  email: String
+  phone: String
+  whatsappLinked: Boolean
+  emailNotifications: Boolean
+  whatsappNotifications: Boolean
+  profileImage: String
+}
+
+input CreateChannelInput {
+  youtubeUrl: String!
+  username: String
+  subscriberCount: Int
+  language: ChannelLanguage!
+  country: ChannelCountry
+  editType: EditType
+  channelPurpose: ChannelPurpose!
+  type: ChannelType!
+  domain: String
+  ownedBy: ID
+}
+
+input UpdateChannelInput {
+  username: String
+  subscriberCount: Int
+  language: ChannelLanguage
+  country: ChannelCountry
+  editType: EditType
+  type: ChannelType
+  domain: String
+}
+
+input RollVideosInput {
+  sourceChannelIds: [ID!]!
+  count: Int!
+}
+
+input AssignVideoInput {
+  videoId: ID!
+  videasteId: ID!
+  publicationChannelId: ID!
+  scheduledDate: DateTime!
+  notes: String
+}
+
+input UpdateVideoStatusInput {
+  videoId: ID!
+  status: VideoStatus!
+  adminFeedback: String
+}
+
+input CreateCommentInput {
+  videoId: ID!
+  comment: String!
+}
+
+input VideoFilterInput {
+  status: VideoStatus
+  assignedToId: ID
+  sourceChannelId: ID
+  publicationChannelId: ID
+  startDate: DateTime
+  endDate: DateTime
+  isLate: Boolean
+}
+
+# ============================================
+# PAGINATION
+# ============================================
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type VideosConnection {
+  edges: [VideoEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type VideoEdge {
+  cursor: String!
+  node: Video!
+}
+
+type ChannelsConnection {
+  edges: [ChannelEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type ChannelEdge {
+  cursor: String!
+  node: Channel!
+}
+
+type UsersConnection {
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type UserEdge {
+  cursor: String!
+  node: User!
+}
+
+type NotificationsConnection {
+  edges: [NotificationEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type NotificationEdge {
+  cursor: String!
+  node: Notification!
+}
+
+# ============================================
+# AUTH PAYLOAD
+# ============================================
+
+type AuthPayload {
+  token: String!
+  refreshToken: String!
+  user: User!
+}
+
+# ============================================
+# QUERIES
+# ============================================
+
+type Query {
+  # Auth
+  me: User!
+
+  # Users
+  users(
+    first: Int
+    after: String
+    role: UserRole
+    status: UserStatus
+  ): UsersConnection!
+  user(id: ID!): User
+
+  # Channels
+  channels(
+    first: Int
+    after: String
+    purpose: ChannelPurpose
+    language: ChannelLanguage
+    country: ChannelCountry
+  ): ChannelsConnection!
+  channel(id: ID!): Channel
+
+  # Videos
+  videos(
+    first: Int
+    after: String
+    filter: VideoFilterInput
+    sortBy: String
+    sortOrder: String
+  ): VideosConnection!
+  video(id: ID!): Video
+
+  # Calendar
+  calendarVideos(
+    startDate: DateTime!
+    endDate: DateTime!
+    userId: ID
+  ): [Video!]!
+
+  # Notifications
+  notifications(
+    first: Int
+    after: String
+    unreadOnly: Boolean
+  ): NotificationsConnection!
+  unreadNotificationsCount: Int!
+
+  # Analytics
+  dashboardAnalytics: DashboardAnalytics!
+  channelAnalytics(channelId: ID!): ChannelStats!
+  userAnalytics(userId: ID!): UserStats!
+
+  # Activity Logs
+  activityLogs(
+    first: Int
+    after: String
+    userId: ID
+    resourceType: String
+  ): [ActivityLog!]!
+}
+
+# ============================================
+# MUTATIONS
+# ============================================
+
+type Mutation {
+  # Auth
+  login(username: String!, password: String!): AuthPayload!
+  logout: Boolean!
+  refreshToken(token: String!): AuthPayload!
+  changePassword(oldPassword: String!, newPassword: String!): Boolean!
+
+  # Users (Admin only)
+  createUser(input: CreateUserInput!): User!
+  updateUser(id: ID!, input: UpdateUserInput!): User!
+  updateUserStatus(id: ID!, status: UserStatus!): User!
+  deleteUser(id: ID!): Boolean!
+  assignAssistant(videasteId: ID!, assistantId: ID!): User!
+
+  # Channels
+  createChannel(input: CreateChannelInput!): Channel!
+  updateChannel(id: ID!, input: UpdateChannelInput!): Channel!
+  deleteChannel(id: ID!): Boolean!
+  refreshChannelSubscribers(id: ID!): Channel!
+
+  # Videos
+  rollVideos(input: RollVideosInput!): [Video!]!
+  assignVideo(input: AssignVideoInput!): Video!
+  reassignVideo(videoId: ID!, newVideasteId: ID!): Video!
+  updateVideoStatus(input: UpdateVideoStatusInput!): Video!
+  deleteVideo(id: ID!): Boolean!
+
+  # Video Comments
+  createComment(input: CreateCommentInput!): VideoComment!
+  deleteComment(id: ID!): Boolean!
+
+  # Notifications
+  markNotificationAsRead(id: ID!): Notification!
+  markAllNotificationsAsRead: Boolean!
+
+  # Batch operations
+  assignMultipleVideos(videoIds: [ID!]!, videasteId: ID!, scheduledDates: [DateTime!]!): [Video!]!
+  updateMultipleVideosStatus(videoIds: [ID!]!, status: VideoStatus!): [Video!]!
+}
+
+# ============================================
+# SUBSCRIPTIONS
+# ============================================
+
+type Subscription {
+  notificationReceived(userId: ID!): Notification!
+  videoStatusChanged(videoId: ID): Video!
+  videoAssigned(userId: ID!): Video!
+  videoCompleted: Video!
+  userStatusChanged(userId: ID): User!
+  channelSubscribersUpdated(channelId: ID): Channel!
+}
