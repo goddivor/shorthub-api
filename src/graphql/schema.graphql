@@ -39,6 +39,14 @@ enum EditType {
   AVEC_EDIT
 }
 
+# Types de contenu pour les chaînes sources
+enum ContentType {
+  VA_SANS_EDIT  # Version Anglaise sans édition
+  VA_AVEC_EDIT  # Version Anglaise avec édition
+  VF_SANS_EDIT  # Version Française sans édition
+  VF_AVEC_EDIT  # Version Française avec édition
+}
+
 enum ChannelPurpose {
   SOURCE
   PUBLICATION
@@ -49,6 +57,18 @@ enum ChannelType {
   ONLY
 }
 
+enum ShortStatus {
+  ROLLED      # Short généré aléatoirement
+  RETAINED    # Short retenu par l'admin
+  REJECTED    # Short rejeté par l'admin (peut réapparaître)
+  ASSIGNED    # Short assigné à un vidéaste
+  IN_PROGRESS # Vidéaste travaille dessus
+  COMPLETED   # Vidéaste a terminé
+  VALIDATED   # Admin a validé
+  PUBLISHED   # Vidéo publiée sur YouTube
+}
+
+# Garder VideoStatus pour compatibilité
 enum VideoStatus {
   ROLLED
   ASSIGNED
@@ -76,7 +96,7 @@ enum NotificationType {
 type User {
   id: ID!
   username: String!
-  email: String!
+  email: String
   role: UserRole!
   status: UserStatus!
   phone: String
@@ -136,6 +156,83 @@ type ChannelStats {
   totalVideosPublished: Int!
   subscriberGrowthLast30Days: Int!
   subscriberGrowthRate: Float
+}
+
+# ============================================
+# NOUVEAUX TYPES - REFONTE SYSTÈME
+# ============================================
+
+# Chaîne Source - Chaînes dont on récupère les shorts
+type SourceChannel {
+  id: ID!
+  channelId: String!          # @username ou channel ID YouTube
+  channelName: String!         # Nom de la chaîne
+  profileImageUrl: String      # URL de l'image de profil
+  contentType: ContentType!    # Type de contenu (VA_SANS_EDIT, VA_AVEC_EDIT, etc.)
+  totalVideos: Int            # Nombre total de vidéos (calculé via API, non stocké)
+  shortsRolled: [Short!]!     # Shorts générés depuis cette chaîne
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# Chaîne Admin - Chaînes YouTube de l'admin (pour publication)
+type AdminChannel {
+  id: ID!
+  channelId: String!          # @username ou channel ID YouTube
+  channelName: String!         # Nom de la chaîne
+  profileImageUrl: String!     # URL de l'image de profil
+  totalVideos: Int            # Nombre total de vidéos (calculé via API, non stocké)
+  subscriberCount: Int        # Nombre d'abonnés (calculé via API, non stocké)
+  shortsAssigned: [Short!]!   # Shorts assignés pour cette chaîne
+  stats: AdminChannelStats    # Statistiques de la chaîne
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# Statistiques d'une chaîne admin
+type AdminChannelStats {
+  totalShortsPublished: Int!
+  totalShortsInProgress: Int!
+  totalShortsCompleted: Int!
+  videosPublishedLast7Days: [DailyVideoCount!]!
+  videosPublishedLast30Days: [DailyVideoCount!]!
+}
+
+# Short - Vidéo courte récupérée depuis une chaîne source
+type Short {
+  id: ID!
+  videoId: String!                # ID de la vidéo YouTube
+  videoUrl: String!               # Lien de la vidéo
+  sourceChannel: SourceChannel!   # Chaîne source
+  status: ShortStatus!            # Statut du short
+  rolledAt: DateTime!             # Date du roll
+  retainedAt: DateTime            # Date où le short a été retenu
+  rejectedAt: DateTime            # Date où le short a été rejeté
+  assignedTo: User                # Vidéaste assigné
+  assignedBy: User                # Admin qui a assigné
+  assignedAt: DateTime            # Date d'assignation
+  deadline: DateTime              # Date d'échéance
+  targetChannel: AdminChannel     # Chaîne cible pour publication
+  completedAt: DateTime           # Date de complétion
+  validatedAt: DateTime           # Date de validation
+  publishedAt: DateTime           # Date de publication
+  title: String                   # Titre de la vidéo à publier
+  description: String             # Description
+  tags: [String!]!                # Tags
+  notes: String                   # Notes de l'admin
+  adminFeedback: String           # Feedback de l'admin
+  comments: [ShortComment!]!      # Commentaires
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+# Commentaire sur un short
+type ShortComment {
+  id: ID!
+  short: Short!
+  author: User!
+  comment: String!
+  createdAt: DateTime!
 }
 
 type Video {
@@ -253,13 +350,8 @@ type ChannelGrowth {
 
 input CreateUserInput {
   username: String!
-  email: String!
   password: String!
   role: UserRole!
-  phone: String
-  whatsappLinked: Boolean
-  emailNotifications: Boolean
-  whatsappNotifications: Boolean
 }
 
 input UpdateUserInput {
@@ -316,6 +408,61 @@ input UpdateVideoStatusInput {
 input CreateCommentInput {
   videoId: ID!
   comment: String!
+}
+
+# ============================================
+# NOUVEAUX INPUTS - REFONTE SYSTÈME
+# ============================================
+
+input CreateSourceChannelInput {
+  youtubeUrl: String!          # Peut être lien de chaîne, vidéo ou short
+  contentType: ContentType!     # Type de contenu
+}
+
+input UpdateSourceChannelInput {
+  contentType: ContentType
+  profileImageUrl: String
+}
+
+input CreateAdminChannelInput {
+  youtubeUrl: String!           # Peut être lien de chaîne, vidéo ou short
+}
+
+input UpdateAdminChannelInput {
+  profileImageUrl: String
+}
+
+input RollShortInput {
+  sourceChannelId: ID!          # Chaîne source depuis laquelle roller
+}
+
+input AssignShortInput {
+  shortId: ID!                  # Short à assigner
+  videasteId: ID!               # Vidéaste assigné
+  targetChannelId: ID!          # Chaîne admin cible
+  deadline: DateTime!           # Date d'échéance
+  notes: String                 # Notes pour le vidéaste
+}
+
+input UpdateShortStatusInput {
+  shortId: ID!
+  status: ShortStatus!
+  adminFeedback: String
+}
+
+input CreateShortCommentInput {
+  shortId: ID!
+  comment: String!
+}
+
+input ShortFilterInput {
+  status: ShortStatus
+  assignedToId: ID
+  sourceChannelId: ID
+  targetChannelId: ID
+  contentType: ContentType
+  startDate: DateTime
+  endDate: DateTime
 }
 
 input VideoFilterInput {
@@ -457,6 +604,23 @@ type Query {
     userId: ID
     resourceType: String
   ): [ActivityLog!]!
+
+  # ============================================
+  # NOUVELLES QUERIES - REFONTE SYSTÈME
+  # ============================================
+
+  # Source Channels
+  sourceChannels(contentType: ContentType): [SourceChannel!]!
+  sourceChannel(id: ID!): SourceChannel
+
+  # Admin Channels
+  adminChannels: [AdminChannel!]!
+  adminChannel(id: ID!): AdminChannel
+  adminChannelStats(channelId: ID!): AdminChannelStats!
+
+  # Shorts
+  shorts(filter: ShortFilterInput): [Short!]!
+  short(id: ID!): Short
 }
 
 # ============================================
@@ -476,6 +640,12 @@ type Mutation {
   updateUserStatus(id: ID!, status: UserStatus!): User!
   deleteUser(id: ID!): Boolean!
   assignAssistant(videasteId: ID!, assistantId: ID!): User!
+
+  # User account connections (Self-service)
+  connectGoogleAccount(email: String!): User!
+  disconnectGoogleAccount: User!
+  connectWhatsAppAccount(phone: String!): User!
+  disconnectWhatsAppAccount: User!
 
   # Channels
   createChannel(input: CreateChannelInput!): Channel!
@@ -501,6 +671,33 @@ type Mutation {
   # Batch operations
   assignMultipleVideos(videoIds: [ID!]!, videasteId: ID!, scheduledDates: [DateTime!]!): [Video!]!
   updateMultipleVideosStatus(videoIds: [ID!]!, status: VideoStatus!): [Video!]!
+
+  # ============================================
+  # NOUVELLES MUTATIONS - REFONTE SYSTÈME
+  # ============================================
+
+  # Source Channels (Chaînes sources)
+  createSourceChannel(input: CreateSourceChannelInput!): SourceChannel!
+  updateSourceChannel(id: ID!, input: UpdateSourceChannelInput!): SourceChannel!
+  deleteSourceChannel(id: ID!): Boolean!
+
+  # Admin Channels (Mes chaînes YouTube)
+  createAdminChannel(input: CreateAdminChannelInput!): AdminChannel!
+  updateAdminChannel(id: ID!, input: UpdateAdminChannelInput!): AdminChannel!
+  deleteAdminChannel(id: ID!): Boolean!
+
+  # Shorts - Rolling et gestion
+  rollShort(input: RollShortInput!): Short!                    # Générer un short aléatoire
+  retainShort(shortId: ID!): Short!                            # Retenir un short
+  rejectShort(shortId: ID!): Short!                            # Rejeter un short
+  assignShort(input: AssignShortInput!): Short!                # Assigner à vidéaste
+  reassignShort(shortId: ID!, newVideasteId: ID!): Short!      # Réassigner
+  updateShortStatus(input: UpdateShortStatusInput!): Short!    # Mettre à jour statut
+  deleteShort(id: ID!): Boolean!
+
+  # Short Comments
+  createShortComment(input: CreateShortCommentInput!): ShortComment!
+  deleteShortComment(id: ID!): Boolean!
 }
 
 # ============================================
