@@ -1,6 +1,6 @@
 // Resolvers pour AdminChannel
 import { GraphQLContext } from '../../context';
-import { AdminChannel, IAdminChannel } from '../../models/AdminChannel';
+import { AdminChannel, IAdminChannel, ContentType } from '../../models/AdminChannel';
 import { Short, ShortStatus } from '../../models/Short';
 import { YouTubeService } from '../../services/youtube.service';
 import { GraphQLError } from 'graphql';
@@ -132,7 +132,7 @@ export const AdminChannelResolvers = {
 
   Mutation: {
     // Créer une nouvelle chaîne admin
-    createAdminChannel: async (_: unknown, { input }: { input: { youtubeUrl: string } }, context: GraphQLContext) => {
+    createAdminChannel: async (_: unknown, { input }: { input: { youtubeUrl: string; contentType: ContentType } }, context: GraphQLContext) => {
       requireAdmin(context);
 
       try {
@@ -154,6 +154,7 @@ export const AdminChannelResolvers = {
           channelId: channelData.channelId,
           channelName: channelData.username,
           profileImageUrl: channelData.profileImageUrl,
+          contentType: input.contentType,
         });
 
         await adminChannel.save();
@@ -166,7 +167,7 @@ export const AdminChannelResolvers = {
     },
 
     // Mettre à jour une chaîne admin
-    updateAdminChannel: async (_: unknown, { id, input }: { id: string; input: { profileImageUrl?: string } }, context: GraphQLContext) => {
+    updateAdminChannel: async (_: unknown, { id, input }: { id: string; input: { contentType?: ContentType; profileImageUrl?: string } }, context: GraphQLContext) => {
       requireAdmin(context);
 
       const channel = await AdminChannel.findById(id);
@@ -175,6 +176,9 @@ export const AdminChannelResolvers = {
       }
 
       // Mettre à jour les champs fournis
+      if (input.contentType !== undefined) {
+        channel.contentType = input.contentType;
+      }
       if (input.profileImageUrl !== undefined) {
         channel.profileImageUrl = input.profileImageUrl;
       }
