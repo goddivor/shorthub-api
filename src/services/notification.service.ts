@@ -164,7 +164,7 @@ export class NotificationService {
   /**
    * Génère le HTML de l'email
    */
-  private static getEmailHtml(type: NotificationType, message: string, video?: IVideo): string {
+  private static getEmailHtml(_type: NotificationType, message: string, video?: IVideo): string {
     const baseStyles = `
       <style>
         body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
@@ -234,11 +234,11 @@ export class NotificationService {
     const message = `Une nouvelle vidéo vous a été assignée pour le ${new Date(scheduledDate).toLocaleDateString('fr-FR')}.`;
 
     return await this.createAndSend({
-      recipientId: recipient._id.toString(),
+      recipientId: (recipient as any)._id.toString(),
       recipient,
       type: NotificationType.VIDEO_ASSIGNED,
       message,
-      videoId: video._id.toString(),
+      videoId: (video as any)._id.toString(),
       video,
     });
   }
@@ -251,11 +251,11 @@ export class NotificationService {
     const message = `⏰ Rappel: Il vous reste ${hoursRemaining}h pour réaliser la vidéo "${video.title || 'Sans titre'}".`;
 
     return await this.createAndSend({
-      recipientId: recipient._id.toString(),
+      recipientId: (recipient as any)._id.toString(),
       recipient,
       type: NotificationType.DEADLINE_REMINDER,
       message,
-      videoId: video._id.toString(),
+      videoId: (video as any)._id.toString(),
       video,
     });
   }
@@ -268,11 +268,11 @@ export class NotificationService {
     const message = `✅ ${completedBy.username} a marqué la vidéo "${video.title || 'Sans titre'}" comme complétée.`;
 
     return await this.createAndSend({
-      recipientId: recipient._id.toString(),
+      recipientId: (recipient as any)._id.toString(),
       recipient,
       type: NotificationType.VIDEO_COMPLETED,
       message,
-      videoId: video._id.toString(),
+      videoId: (video as any)._id.toString(),
       video,
     });
   }
@@ -288,11 +288,11 @@ export class NotificationService {
     }
 
     return await this.createAndSend({
-      recipientId: recipient._id.toString(),
+      recipientId: (recipient as any)._id.toString(),
       recipient,
       type: NotificationType.VIDEO_VALIDATED,
       message,
-      videoId: video._id.toString(),
+      videoId: (video as any)._id.toString(),
       video,
     });
   }
@@ -305,11 +305,11 @@ export class NotificationService {
     const message = `❌ Votre vidéo "${video.title || 'Sans titre'}" a été rejetée.\n\nRaison: ${feedback}`;
 
     return await this.createAndSend({
-      recipientId: recipient._id.toString(),
+      recipientId: (recipient as any)._id.toString(),
       recipient,
       type: NotificationType.VIDEO_REJECTED,
       message,
-      videoId: video._id.toString(),
+      videoId: (video as any)._id.toString(),
       video,
     });
   }
@@ -326,7 +326,7 @@ export class NotificationService {
         : '✅ Votre compte a été débloqué. Vous pouvez à nouveau vous connecter.';
 
     return await this.createAndSend({
-      recipientId: recipient._id.toString(),
+      recipientId: (recipient as any)._id.toString(),
       recipient,
       type,
       message,

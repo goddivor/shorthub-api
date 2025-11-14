@@ -1,4 +1,4 @@
-import { User, IUser, UserRole } from '../models/User';
+import { User, UserRole } from '../models/User';
 import { hashPassword, comparePassword } from '../utils/password';
 import { generateToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 import { GraphQLError } from 'graphql';
@@ -31,8 +31,8 @@ export class AuthService {
     user.lastLogin = new Date();
     await user.save();
 
-    const token = generateToken({ userId: user._id.toString(), role: user.role });
-    const refreshToken = generateRefreshToken({ userId: user._id.toString(), role: user.role });
+    const token = generateToken({ userId: (user as any)._id.toString(), role: user.role });
+    const refreshToken = generateRefreshToken({ userId: (user as any)._id.toString(), role: user.role });
 
     return {
       token,
@@ -52,8 +52,8 @@ export class AuthService {
         });
       }
 
-      const newToken = generateToken({ userId: user._id.toString(), role: user.role });
-      const newRefreshToken = generateRefreshToken({ userId: user._id.toString(), role: user.role });
+      const newToken = generateToken({ userId: (user as any)._id.toString(), role: user.role });
+      const newRefreshToken = generateRefreshToken({ userId: (user as any)._id.toString(), role: user.role });
 
       return {
         token: newToken,
