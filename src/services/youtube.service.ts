@@ -6,6 +6,8 @@ interface ChannelData {
   channelId: string;
   username: string;
   subscriberCount: number;
+  profileImageUrl?: string;
+  totalVideos?: number;
 }
 
 interface YouTubeChannelResponse {
@@ -14,9 +16,21 @@ interface YouTubeChannelResponse {
     snippet: {
       title: string;
       customUrl?: string;
+      thumbnails?: {
+        high?: {
+          url: string;
+        };
+        medium?: {
+          url: string;
+        };
+        default?: {
+          url: string;
+        };
+      };
     };
     statistics: {
       subscriberCount: string;
+      videoCount?: string;
     };
   }>;
 }
@@ -41,6 +55,7 @@ interface YouTubeVideoResponse {
       title: string;
       description: string;
       tags?: string[];
+      channelId?: string;
     };
     contentDetails: {
       duration: string;
@@ -79,6 +94,67 @@ export class YouTubeService {
   }
 
   /**
+   * Extrait le videoId depuis une URL de vidéo ou short YouTube
+   */
+  static extractVideoIdFromUrl(url: string): string | null {
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const searchParams = urlObj.searchParams;
+
+      // Format: /watch?v=VIDEO_ID
+      if (pathname === '/watch' && searchParams.has('v')) {
+        return searchParams.get('v');
+      }
+
+      // Format: /shorts/VIDEO_ID
+      if (pathname.startsWith('/shorts/')) {
+        return pathname.split('/shorts/')[1].split('/')[0].split('?')[0];
+      }
+
+      // Format: youtu.be/VIDEO_ID
+      if (urlObj.hostname === 'youtu.be') {
+        return pathname.substring(1).split('/')[0].split('?')[0];
+      }
+
+      return null;
+    } catch (error) {
+      logger.error('Error parsing video URL:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Récupère le channelId depuis un videoId
+   */
+  static async getChannelIdFromVideo(videoId: string): Promise<string | null> {
+    if (!this.API_KEY) {
+      throw new GraphQLError('YouTube API key not configured');
+    }
+
+    try {
+      const response = await fetch(
+        `${this.BASE_URL}/videos?part=snippet&id=${videoId}&key=${this.API_KEY}`
+      );
+
+      if (!response.ok) {
+        throw new GraphQLError(`YouTube API error: ${response.status}`);
+      }
+
+      const data = (await response.json()) as YouTubeVideoResponse;
+
+      if (!data.items || data.items.length === 0) {
+        return null;
+      }
+
+      return data.items[0].snippet.channelId || null;
+    } catch (error) {
+      logger.error('Error fetching video details:', error);
+      return null;
+    }
+  }
+
+  /**
    * Recherche une chaîne par nom/handle
    */
   static async searchChannelByName(query: string): Promise<string | null> {
@@ -98,7 +174,7 @@ export class YouTubeService {
         throw new GraphQLError(`YouTube API error: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as YouTubeSearchResponse;
 
       if (data.items && data.items.length > 0) {
         return data.items[0].snippet.channelId;
@@ -128,7 +204,7 @@ export class YouTubeService {
         throw new GraphQLError(`YouTube API error: ${response.status}`);
       }
 
-      const data: YouTubeChannelResponse = await response.json();
+      const data = (await response.json()) as YouTubeChannelResponse;
 
       if (!data.items || data.items.length === 0) {
         throw new GraphQLError('Channel not found');
@@ -141,10 +217,18 @@ export class YouTubeService {
         username = `@${username}`;
       }
 
+      // Récupérer l'image de profil (priorité: high > medium > default)
+      const profileImageUrl =
+        channel.snippet.thumbnails?.high?.url ||
+        channel.snippet.thumbnails?.medium?.url ||
+        channel.snippet.thumbnails?.default?.url;
+
       return {
         channelId: channel.id,
         username: username || channel.snippet.title,
         subscriberCount: parseInt(channel.statistics.subscriberCount) || 0,
+        profileImageUrl,
+        totalVideos: parseInt(channel.statistics.videoCount || '0') || 0,
       };
     } catch (error) {
       logger.error('Error fetching channel details:', error);
@@ -153,12 +237,23 @@ export class YouTubeService {
   }
 
   /**
-   * Extrait les données d'une chaîne depuis une URL
+   * Extrait les données d'une chaîne depuis n'importe quel type d'URL YouTube
+   * Supporte: liens de chaîne, vidéos, shorts
    */
   static async extractChannelDataFromUrl(url: string): Promise<ChannelData> {
     let channelId = this.extractChannelIdFromUrl(url);
 
-    // Si pas d'ID direct, rechercher par nom
+    // Si pas d'ID direct de chaîne, essayer d'extraire depuis une vidéo/short
+    if (!channelId) {
+      const videoId = this.extractVideoIdFromUrl(url);
+
+      if (videoId) {
+        // Récupérer le channelId depuis le videoId
+        channelId = await this.getChannelIdFromVideo(videoId);
+      }
+    }
+
+    // Si toujours pas d'ID, rechercher par nom (pour @handle, /c/, /user/)
     if (!channelId) {
       const urlObj = new URL(url);
       const pathname = urlObj.pathname;
@@ -224,7 +319,7 @@ export class YouTubeService {
         throw new GraphQLError(`YouTube API error: ${searchResponse.status}`);
       }
 
-      const searchData: YouTubeSearchResponse = await searchResponse.json();
+      const searchData = (await searchResponse.json()) as YouTubeSearchResponse;
 
       if (!searchData.items || searchData.items.length === 0) {
         return [];
@@ -241,7 +336,7 @@ export class YouTubeService {
         throw new GraphQLError(`YouTube API error: ${videosResponse.status}`);
       }
 
-      const videosData: YouTubeVideoResponse = await videosResponse.json();
+      const videosData = (await videosResponse.json()) as YouTubeVideoResponse;
 
       // Filtrer les Shorts (≤ 60 secondes)
       const shorts: Array<{ url: string; title: string; tags: string[] }> = [];
