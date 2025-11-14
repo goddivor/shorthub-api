@@ -44,3 +44,7 @@ export const requireRole = (context: GraphQLContext, allowedRoles: string[]) => 
 
   return user;
 };
+
+export const requireAdmin = (context: GraphQLContext) => {
+  return requireRole(context, ['ADMIN']);
+};
