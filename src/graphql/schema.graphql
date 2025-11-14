@@ -181,6 +181,7 @@ type AdminChannel {
   channelId: String!          # @username ou channel ID YouTube
   channelName: String!         # Nom de la chaîne
   profileImageUrl: String!     # URL de l'image de profil
+  contentType: ContentType!    # Type de contenu (VA_SANS_EDIT, VA_AVEC_EDIT, etc.)
   totalVideos: Int            # Nombre total de vidéos (calculé via API, non stocké)
   subscriberCount: Int        # Nombre d'abonnés (calculé via API, non stocké)
   shortsAssigned: [Short!]!   # Shorts assignés pour cette chaîne
@@ -344,6 +345,18 @@ type ChannelGrowth {
   growthRate: Float!
 }
 
+# Statistiques globales des shorts
+type ShortsStats {
+  totalRolled: Int!
+  totalRetained: Int!
+  totalRejected: Int!
+  totalAssigned: Int!
+  totalInProgress: Int!
+  totalCompleted: Int!
+  totalValidated: Int!
+  totalPublished: Int!
+}
+
 # ============================================
 # INPUTS
 # ============================================
@@ -426,9 +439,11 @@ input UpdateSourceChannelInput {
 
 input CreateAdminChannelInput {
   youtubeUrl: String!           # Peut être lien de chaîne, vidéo ou short
+  contentType: ContentType!      # Type de contenu
 }
 
 input UpdateAdminChannelInput {
+  contentType: ContentType
   profileImageUrl: String
 }
 
@@ -621,6 +636,7 @@ type Query {
   # Shorts
   shorts(filter: ShortFilterInput): [Short!]!
   short(id: ID!): Short
+  shortsStats: ShortsStats!
 }
 
 # ============================================

@@ -80,6 +80,42 @@ export const ShortResolvers = {
 
       return short;
     },
+
+    // Récupérer les statistiques globales des shorts
+    shortsStats: async (_: unknown, __: unknown, context: GraphQLContext) => {
+      requireAuth(context);
+
+      const [
+        totalRolled,
+        totalRetained,
+        totalRejected,
+        totalAssigned,
+        totalInProgress,
+        totalCompleted,
+        totalValidated,
+        totalPublished,
+      ] = await Promise.all([
+        Short.countDocuments({ status: ShortStatus.ROLLED }),
+        Short.countDocuments({ status: ShortStatus.RETAINED }),
+        Short.countDocuments({ status: ShortStatus.REJECTED }),
+        Short.countDocuments({ status: ShortStatus.ASSIGNED }),
+        Short.countDocuments({ status: ShortStatus.IN_PROGRESS }),
+        Short.countDocuments({ status: ShortStatus.COMPLETED }),
+        Short.countDocuments({ status: ShortStatus.VALIDATED }),
+        Short.countDocuments({ status: ShortStatus.PUBLISHED }),
+      ]);
+
+      return {
+        totalRolled,
+        totalRetained,
+        totalRejected,
+        totalAssigned,
+        totalInProgress,
+        totalCompleted,
+        totalValidated,
+        totalPublished,
+      };
+    },
   },
 
   Mutation: {
