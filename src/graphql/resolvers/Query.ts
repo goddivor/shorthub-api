@@ -209,7 +209,7 @@ export const Query = {
     const currentUser = requireAuth(context);
 
     // Admin peut voir n'importe qui, sinon uniquement soi-même
-    if (currentUser.role !== UserRole.ADMIN && currentUser._id.toString() !== userId) {
+    if (currentUser.role !== UserRole.ADMIN && (currentUser as any)._id.toString() !== userId) {
       throw new Error('Forbidden');
     }
 

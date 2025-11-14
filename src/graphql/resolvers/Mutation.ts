@@ -1,20 +1,21 @@
 import { GraphQLContext } from '../../context';
+import { Types } from 'mongoose';
 import { requireAuth, requireRole } from '../../middlewares/auth';
 import { User, UserRole, UserStatus } from '../../models/User';
 import { Channel } from '../../models/Channel';
 import { Video, VideoStatus } from '../../models/Video';
-import { Notification } from '../../models/Notification';
+import { Notification, NotificationType } from '../../models/Notification';
 import { VideoComment } from '../../models/VideoComment';
 import { AuthService } from '../../services/auth.service';
 import { YouTubeService } from '../../services/youtube.service';
 import { NotificationService } from '../../services/notification.service';
 import { hashPassword } from '../../utils/password';
 import { GraphQLError } from 'graphql';
-import mongoose from 'mongoose';
+
 
 export const Mutation = {
   // Auth
-  login: async (_: any, { username, password }: any) => {
+  login: async (_: unknown, { username, password }: { username: string; password: string }) => {
     return await AuthService.login(username, password);
   },
 
@@ -23,17 +24,17 @@ export const Mutation = {
     return true;
   },
 
-  refreshToken: async (_: any, { token }: any) => {
+  refreshToken: async (_: unknown, { token }: { token: string }) => {
     return await AuthService.refreshToken(token);
   },
 
-  changePassword: async (_: any, { oldPassword, newPassword }: any, context: GraphQLContext) => {
+  changePassword: async (_: unknown, { oldPassword, newPassword }: { oldPassword: string; newPassword: string }, context: GraphQLContext) => {
     const user = requireAuth(context);
-    return await AuthService.changePassword(user._id.toString(), oldPassword, newPassword);
+    return await AuthService.changePassword((user as unknown as { _id: { toString: () => string } })._id.toString(), oldPassword, newPassword);
   },
 
   // Users (Admin only)
-  createUser: async (_: any, { input }: any, context: GraphQLContext) => {
+  createUser: async (_: unknown, { input }: { input: { username: string; email: string; password: string; role: string; phone?: string } }, context: GraphQLContext) => {
     const admin = requireRole(context, [UserRole.ADMIN]);
 
     const hashedPassword = await hashPassword(input.password);
@@ -41,17 +42,17 @@ export const Mutation = {
     const user = await User.create({
       ...input,
       password: hashedPassword,
-      createdBy: admin._id,
+      createdBy: new Types.ObjectId((admin as unknown as { _id: string })._id),
     });
 
     return user;
   },
 
-  updateUser: async (_: any, { id, input }: any, context: GraphQLContext) => {
+  updateUser: async (_: unknown, { id, input }: { id: string; input: { email?: string; phone?: string; emailNotifications?: boolean; whatsappNotifications?: boolean } }, context: GraphQLContext) => {
     const currentUser = requireAuth(context);
 
     // Admin peut modifier n'importe qui, sinon uniquement son propre profil
-    if (currentUser.role !== UserRole.ADMIN && currentUser._id.toString() !== id) {
+    if (currentUser.role !== UserRole.ADMIN && (currentUser as unknown as { _id: { toString: () => string } })._id.toString() !== id) {
       throw new GraphQLError('Forbidden', { extensions: { code: 'FORBIDDEN' } });
     }
 
@@ -64,7 +65,7 @@ export const Mutation = {
     return user;
   },
 
-  updateUserStatus: async (_: any, { id, status }: any, context: GraphQLContext) => {
+  updateUserStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: GraphQLContext) => {
     requireRole(context, [UserRole.ADMIN]);
 
     const user = await User.findByIdAndUpdate(id, { status }, { new: true });
@@ -75,7 +76,7 @@ export const Mutation = {
 
     // Notify user
     await Notification.create({
-      recipientId: user._id,
+      recipientId: (user as unknown as { _id: string })._id,
       type: status === UserStatus.BLOCKED ? 'ACCOUNT_BLOCKED' : 'ACCOUNT_UNBLOCKED',
       message: `Your account has been ${status.toLowerCase()}`,
       sentViaEmail: user.emailNotifications,
@@ -84,7 +85,7 @@ export const Mutation = {
     return user;
   },
 
-  deleteUser: async (_: any, { id }: any, context: GraphQLContext) => {
+  deleteUser: async (_: unknown, { id }: { id: string }, context: GraphQLContext) => {
     requireRole(context, [UserRole.ADMIN]);
 
     const user = await User.findByIdAndDelete(id);
@@ -97,14 +98,14 @@ export const Mutation = {
   },
 
   // Channels
-  createChannel: async (_: any, { input }: any, context: GraphQLContext) => {
+  createChannel: async (_: unknown, { input }: { input: { youtubeUrl: string; ownedBy?: string } }, context: GraphQLContext) => {
     requireAuth(context);
 
     const channel = await Channel.create(input);
     return channel;
   },
 
-  updateChannel: async (_: any, { id, input }: any, context: GraphQLContext) => {
+  updateChannel: async (_: unknown, { id, input }: { id: string; input: { subscriberCount?: number; profileImageUrl?: string } }, context: GraphQLContext) => {
     requireAuth(context);
 
     const channel = await Channel.findByIdAndUpdate(id, input, { new: true });
@@ -116,7 +117,7 @@ export const Mutation = {
     return channel;
   },
 
-  deleteChannel: async (_: any, { id }: any, context: GraphQLContext) => {
+  deleteChannel: async (_: unknown, { id }: { id: string }, context: GraphQLContext) => {
     requireAuth(context);
 
     const channel = await Channel.findByIdAndDelete(id);
@@ -128,7 +129,7 @@ export const Mutation = {
     return true;
   },
 
-  refreshChannelSubscribers: async (_: any, { id }: any, context: GraphQLContext) => {
+  refreshChannelSubscribers: async (_: unknown, { id }: { id: string }, context: GraphQLContext) => {
     requireAuth(context);
 
     const channel = await Channel.findById(id);
@@ -150,13 +151,14 @@ export const Mutation = {
       await channel.save();
 
       return channel;
-    } catch (error: any) {
-      throw new GraphQLError(`Failed to refresh subscribers: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new GraphQLError(`Failed to refresh subscribers: ${errorMessage}`);
     }
   },
 
   // Videos
-  rollVideos: async (_: any, { input }: any, context: GraphQLContext) => {
+  rollVideos: async (_: unknown, { input }: { input: { sourceChannelIds: string[]; count?: number } }, context: GraphQLContext) => {
     requireRole(context, [UserRole.ADMIN]);
 
     const { sourceChannelIds, count } = input;
@@ -165,7 +167,7 @@ export const Mutation = {
       throw new GraphQLError('At least one source channel is required');
     }
 
-    const rolledVideos: any[] = [];
+    const rolledVideos: unknown[] = [];
 
     for (const channelId of sourceChannelIds) {
       const channel = await Channel.findById(channelId);
@@ -179,7 +181,7 @@ export const Mutation = {
       const excludeUrls = existingVideos.map((v) => v.sourceVideoUrl);
 
       // Roller N vidéos depuis cette chaîne
-      const videosToRoll = Math.ceil(count / sourceChannelIds.length);
+      const videosToRoll = Math.ceil((count || 5) / sourceChannelIds.length);
 
       for (let i = 0; i < videosToRoll; i++) {
         try {
@@ -200,21 +202,21 @@ export const Mutation = {
           }
         } catch (error) {
           // Continuer même si une vidéo échoue
-          console.error('Error rolling video:', error);
+          // Error rolling video
         }
       }
     }
 
     return rolledVideos;
   },
-  assignVideo: async (_: any, { input }: any, context: GraphQLContext) => {
+  assignVideo: async (_: unknown, { input }: { input: { videoId: string; videasteId: string; scheduledDate: string; publicationChannelId: string; notes?: string } }, context: GraphQLContext) => {
     const admin = requireRole(context, [UserRole.ADMIN]);
 
     const video = await Video.findByIdAndUpdate(
       input.videoId,
       {
         assignedTo: input.videasteId,
-        assignedBy: admin._id,
+        assignedBy: new Types.ObjectId((admin as unknown as { _id: string })._id),
         assignedAt: new Date(),
         publicationChannelId: input.publicationChannelId,
         scheduledDate: input.scheduledDate,
@@ -231,20 +233,20 @@ export const Mutation = {
     // Send notification via service
     const videaste = await User.findById(input.videasteId);
     if (videaste) {
-      await NotificationService.notifyVideoAssigned(videaste, video, input.scheduledDate);
+      await NotificationService.notifyVideoAssigned(videaste, video, new Date(input.scheduledDate));
     }
 
     return video;
   },
 
-  reassignVideo: async (_: any, { videoId, newVideasteId }: any, context: GraphQLContext) => {
+  reassignVideo: async (_: unknown, { videoId, newVideasteId }: { videoId: string; newVideasteId: string }, context: GraphQLContext) => {
     const admin = requireRole(context, [UserRole.ADMIN]);
 
     const video = await Video.findByIdAndUpdate(
       videoId,
       {
         assignedTo: newVideasteId,
-        assignedBy: admin._id,
+        assignedBy: new Types.ObjectId((admin as unknown as { _id: string })._id),
         assignedAt: new Date(),
       },
       { new: true }
@@ -263,8 +265,8 @@ export const Mutation = {
     return video;
   },
 
-  updateVideoStatus: async (_: any, { input }: any, context: GraphQLContext) => {
-    const user = requireAuth(context);
+  updateVideoStatus: async (_: unknown, { input }: { input: { videoId: string; status: string; adminFeedback?: string } }, context: GraphQLContext) => {
+    requireAuth(context);
 
     const video = await Video.findById(input.videoId);
 
@@ -272,7 +274,7 @@ export const Mutation = {
       throw new GraphQLError('Video not found', { extensions: { code: 'NOT_FOUND' } });
     }
 
-    const updateData: any = { status: input.status };
+    const updateData: Record<string, unknown> = { status: input.status };
 
     if (input.status === VideoStatus.COMPLETED) {
       updateData.completedAt = new Date();
@@ -299,7 +301,7 @@ export const Mutation = {
     return updatedVideo;
   },
 
-  deleteVideo: async (_: any, { id }: any, context: GraphQLContext) => {
+  deleteVideo: async (_: unknown, { id }: { id: string }, context: GraphQLContext) => {
     requireRole(context, [UserRole.ADMIN]);
 
     const video = await Video.findByIdAndDelete(id);
@@ -312,19 +314,19 @@ export const Mutation = {
   },
 
   // Comments
-  createComment: async (_: any, { input }: any, context: GraphQLContext) => {
+  createComment: async (_: unknown, { input }: { input: { videoId: string; comment: string } }, context: GraphQLContext) => {
     const user = requireAuth(context);
 
     const comment = await VideoComment.create({
       videoId: input.videoId,
-      authorId: user._id,
+      authorId: new Types.ObjectId((user as unknown as { _id: string })._id),
       comment: input.comment,
     });
 
     return comment;
   },
 
-  deleteComment: async (_: any, { id }: any, context: GraphQLContext) => {
+  deleteComment: async (_: unknown, { id }: { id: string }, context: GraphQLContext) => {
     const user = requireAuth(context);
 
     const comment = await VideoComment.findById(id);
@@ -334,7 +336,7 @@ export const Mutation = {
     }
 
     // Only author or admin can delete
-    if (comment.authorId.toString() !== user._id.toString() && user.role !== UserRole.ADMIN) {
+    if (comment.authorId.toString() !== (user as unknown as { _id: { toString: () => string } })._id.toString() && user.role !== UserRole.ADMIN) {
       throw new GraphQLError('Forbidden', { extensions: { code: 'FORBIDDEN' } });
     }
 
@@ -344,11 +346,11 @@ export const Mutation = {
   },
 
   // Notifications
-  markNotificationAsRead: async (_: any, { id }: any, context: GraphQLContext) => {
+  markNotificationAsRead: async (_: unknown, { id }: { id: string }, context: GraphQLContext) => {
     const user = requireAuth(context);
 
     const notification = await Notification.findOneAndUpdate(
-      { _id: id, recipientId: user._id },
+      { _id: id, recipientId: (user as unknown as { _id: string })._id },
       { read: true, readAt: new Date() },
       { new: true }
     );
@@ -360,30 +362,30 @@ export const Mutation = {
     return notification;
   },
 
-  markAllNotificationsAsRead: async (_: any, __: any, context: GraphQLContext) => {
+  markAllNotificationsAsRead: async (_: unknown, __: unknown, context: GraphQLContext) => {
     const user = requireAuth(context);
 
-    await Notification.updateMany({ recipientId: user._id, read: false }, { read: true, readAt: new Date() });
+    await Notification.updateMany({ recipientId: (user as unknown as { _id: string })._id, read: false }, { read: true, readAt: new Date() });
 
     return true;
   },
 
   // Batch operations
-  assignMultipleVideos: async (_: any, { videoIds, videasteId, scheduledDates }: any, context: GraphQLContext) => {
+  assignMultipleVideos: async (_: unknown, { videoIds, videasteId, scheduledDates }: { videoIds: string[]; videasteId: string; scheduledDates: string[] }, context: GraphQLContext) => {
     const admin = requireRole(context, [UserRole.ADMIN]);
 
     if (videoIds.length !== scheduledDates.length) {
       throw new GraphQLError('videoIds and scheduledDates must have the same length');
     }
 
-    const videos: any[] = [];
+    const videos: unknown[] = [];
 
     for (let i = 0; i < videoIds.length; i++) {
       const video = await Video.findByIdAndUpdate(
         videoIds[i],
         {
           assignedTo: videasteId,
-          assignedBy: admin._id,
+          assignedBy: new Types.ObjectId((admin as unknown as { _id: string })._id),
           assignedAt: new Date(),
           scheduledDate: scheduledDates[i],
           status: VideoStatus.ASSIGNED,
@@ -400,9 +402,9 @@ export const Mutation = {
     const videaste = await User.findById(videasteId);
     if (videaste && videos.length > 0) {
       await NotificationService.createAndSend({
-        recipientId: videaste._id.toString(),
+        recipientId: (videaste as unknown as { _id: { toString: () => string } })._id.toString(),
         recipient: videaste,
-        type: 'VIDEO_ASSIGNED',
+        type: NotificationType.VIDEO_ASSIGNED,
         message: `${videos.length} nouvelles vidéos vous ont été assignées`,
       });
     }
@@ -410,10 +412,10 @@ export const Mutation = {
     return videos;
   },
 
-  updateMultipleVideosStatus: async (_: any, { videoIds, status }: any, context: GraphQLContext) => {
+  updateMultipleVideosStatus: async (_: unknown, { videoIds, status }: { videoIds: string[]; status: string }, context: GraphQLContext) => {
     requireAuth(context);
 
-    const updateData: any = { status };
+    const updateData: Record<string, unknown> = { status };
 
     if (status === VideoStatus.COMPLETED) {
       updateData.completedAt = new Date();
@@ -431,7 +433,7 @@ export const Mutation = {
   },
 
   // Assign assistant to videaste
-  assignAssistant: async (_: any, { videasteId, assistantId }: any, context: GraphQLContext) => {
+  assignAssistant: async (_: unknown, { videasteId, assistantId }: { videasteId: string; assistantId: string }, context: GraphQLContext) => {
     requireRole(context, [UserRole.ADMIN]);
 
     const videaste = await User.findById(videasteId);
@@ -449,9 +451,64 @@ export const Mutation = {
       throw new GraphQLError('User must be an assistant');
     }
 
-    videaste.assignedTo = assistant._id;
+    videaste.assignedTo = new Types.ObjectId((assistant as unknown as { _id: string })._id);
     await videaste.save();
 
     return videaste;
+  },
+
+  // User account connections (Self-service)
+  connectGoogleAccount: async (_: unknown, { email }: { email: string }, context: GraphQLContext) => {
+    const user = requireAuth(context);
+
+    // Vérifier si l'email est déjà utilisé
+    const existingUser = await User.findOne({ email, _id: { $ne: (user as unknown as { _id: string })._id } });
+    if (existingUser) {
+      throw new GraphQLError('This email is already in use by another account');
+    }
+
+    user.email = email;
+    user.emailNotifications = true;
+    await user.save();
+
+    return user;
+  },
+
+  disconnectGoogleAccount: async (_: unknown, __: unknown, context: GraphQLContext) => {
+    const user = requireAuth(context);
+
+    user.email = undefined;
+    user.emailNotifications = false;
+    await user.save();
+
+    return user;
+  },
+
+  connectWhatsAppAccount: async (_: unknown, { phone }: { phone: string }, context: GraphQLContext) => {
+    const user = requireAuth(context);
+
+    // Vérifier si le numéro est déjà utilisé
+    const existingUser = await User.findOne({ phone, _id: { $ne: (user as unknown as { _id: string })._id } });
+    if (existingUser) {
+      throw new GraphQLError('This phone number is already in use by another account');
+    }
+
+    user.phone = phone;
+    user.whatsappLinked = true;
+    user.whatsappNotifications = true;
+    await user.save();
+
+    return user;
+  },
+
+  disconnectWhatsAppAccount: async (_: unknown, __: unknown, context: GraphQLContext) => {
+    const user = requireAuth(context);
+
+    user.phone = undefined;
+    user.whatsappLinked = false;
+    user.whatsappNotifications = false;
+    await user.save();
+
+    return user;
   },
 };

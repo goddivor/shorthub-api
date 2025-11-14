@@ -1,39 +1,60 @@
 import { Query } from './Query';
 import { Mutation } from './Mutation';
 import { Subscription } from './Subscription';
+import { IUser } from '../../models/User';
+import { GraphQLContext } from '../../context';
 import { DateTimeScalar } from '../scalars/DateTime';
 import { JSONScalar } from '../scalars/JSON';
-import { User } from '../../models/User';
-import { Channel } from '../../models/Channel';
-import { Video, VideoStatus } from '../../models/Video';
-import { VideoComment } from '../../models/VideoComment';
-import { Notification } from '../../models/Notification';
+import { Channel, IChannel } from '../../models/Channel';
+import { Video, VideoStatus, IVideo } from '../../models/Video';
+import { VideoComment, IVideoComment } from '../../models/VideoComment';
+import { Notification, INotification } from '../../models/Notification';
+import { SourceChannelResolvers } from './SourceChannel';
+import { AdminChannelResolvers } from './AdminChannel';
+import { ShortResolvers } from './Short';
 
 export const resolvers = {
   DateTime: DateTimeScalar,
   JSON: JSONScalar,
 
-  Query,
-  Mutation,
+  Query: {
+    ...Query,
+    ...SourceChannelResolvers.Query,
+    ...AdminChannelResolvers.Query,
+    ...ShortResolvers.Query,
+  },
+
+  Mutation: {
+    ...Mutation,
+    ...SourceChannelResolvers.Mutation,
+    ...AdminChannelResolvers.Mutation,
+    ...ShortResolvers.Mutation,
+  },
+
   Subscription,
 
-  // Type resolvers
+  // Type resolvers - Nouveaux types
+  SourceChannel: SourceChannelResolvers.SourceChannel,
+  AdminChannel: AdminChannelResolvers.AdminChannel,
+  Short: ShortResolvers.Short,
+
+  // Type resolvers - Anciens types
   User: {
-    createdBy: async (parent: any, _: any, context: any) => {
+    createdBy: async (parent: IUser, _: unknown, context: GraphQLContext) => {
       if (!parent.createdBy) return null;
       return context.dataloaders.userLoader.load(parent.createdBy.toString());
     },
-    assignedTo: async (parent: any, _: any, context: any) => {
+    assignedTo: async (parent: IUser, _: unknown, context: GraphQLContext) => {
       if (!parent.assignedTo) return null;
       return context.dataloaders.userLoader.load(parent.assignedTo.toString());
     },
-    videosAssigned: async (parent: any) => {
+    videosAssigned: async (parent: IUser) => {
       return await Video.find({ assignedTo: parent._id });
     },
-    publicationChannels: async (parent: any) => {
+    publicationChannels: async (parent: IUser) => {
       return await Channel.find({ ownedBy: parent._id });
     },
-    stats: async (parent: any) => {
+    stats: async (parent: IUser) => {
       const totalVideosAssigned = await Video.countDocuments({ assignedTo: parent._id });
       const totalVideosCompleted = await Video.countDocuments({
         assignedTo: parent._id,
@@ -78,17 +99,17 @@ export const resolvers = {
   },
 
   Channel: {
-    ownedBy: async (parent: any, _: any, context: any) => {
+    ownedBy: async (parent: IChannel, _: unknown, context: GraphQLContext) => {
       if (!parent.ownedBy) return null;
       return context.dataloaders.userLoader.load(parent.ownedBy.toString());
     },
-    videosFromChannel: async (parent: any) => {
+    videosFromChannel: async (parent: IChannel) => {
       return await Video.find({ sourceChannelId: parent._id });
     },
-    videosToChannel: async (parent: any) => {
+    videosToChannel: async (parent: IChannel) => {
       return await Video.find({ publicationChannelId: parent._id });
     },
-    stats: async (parent: any) => {
+    stats: async (parent: IChannel) => {
       const totalVideosRolled = await Video.countDocuments({ sourceChannelId: parent._id });
       const totalVideosPublished = await Video.countDocuments({
         publicationChannelId: parent._id,
@@ -100,7 +121,7 @@ export const resolvers = {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const oldEntry = subscriberHistory.find((entry: any) => entry.date <= thirtyDaysAgo);
+      const oldEntry = subscriberHistory.find((entry: { date: Date; count: number }) => entry.date <= thirtyDaysAgo);
       const subscriberGrowthLast30Days = oldEntry
         ? parent.subscriberCount - oldEntry.count
         : 0;
@@ -120,41 +141,41 @@ export const resolvers = {
   },
 
   Video: {
-    sourceChannel: async (parent: any, _: any, context: any) => {
+    sourceChannel: async (parent: IVideo, _: unknown, context: GraphQLContext) => {
       return context.dataloaders.channelLoader.load(parent.sourceChannelId.toString());
     },
-    assignedTo: async (parent: any, _: any, context: any) => {
+    assignedTo: async (parent: IVideo, _: unknown, context: GraphQLContext) => {
       if (!parent.assignedTo) return null;
       return context.dataloaders.userLoader.load(parent.assignedTo.toString());
     },
-    assignedBy: async (parent: any, _: any, context: any) => {
+    assignedBy: async (parent: IVideo, _: unknown, context: GraphQLContext) => {
       if (!parent.assignedBy) return null;
       return context.dataloaders.userLoader.load(parent.assignedBy.toString());
     },
-    publicationChannel: async (parent: any, _: any, context: any) => {
+    publicationChannel: async (parent: IVideo, _: unknown, context: GraphQLContext) => {
       if (!parent.publicationChannelId) return null;
       return context.dataloaders.channelLoader.load(parent.publicationChannelId.toString());
     },
-    comments: async (parent: any) => {
+    comments: async (parent: IVideo) => {
       return await VideoComment.find({ videoId: parent._id });
     },
-    notifications: async (parent: any) => {
+    notifications: async (parent: IVideo) => {
       return await Notification.find({ videoId: parent._id });
     },
-    isLate: (parent: any) => {
+    isLate: (parent: IVideo) => {
       if (!parent.scheduledDate || parent.status === VideoStatus.PUBLISHED) {
         return false;
       }
       return new Date() > parent.scheduledDate && parent.status !== VideoStatus.VALIDATED;
     },
-    daysUntilDeadline: (parent: any) => {
+    daysUntilDeadline: (parent: IVideo) => {
       if (!parent.scheduledDate) return null;
       const now = new Date();
       const scheduled = new Date(parent.scheduledDate);
       const diffTime = scheduled.getTime() - now.getTime();
       return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     },
-    timeToComplete: (parent: any) => {
+    timeToComplete: (parent: IVideo) => {
       if (!parent.completedAt || !parent.assignedAt) return null;
       const diffTime = parent.completedAt.getTime() - parent.assignedAt.getTime();
       return diffTime / (1000 * 60 * 60); // Hours
@@ -162,19 +183,19 @@ export const resolvers = {
   },
 
   VideoComment: {
-    video: async (parent: any, _: any, context: any) => {
+    video: async (parent: IVideoComment, _: unknown, context: GraphQLContext) => {
       return context.dataloaders.videoLoader.load(parent.videoId.toString());
     },
-    author: async (parent: any, _: any, context: any) => {
+    author: async (parent: IVideoComment, _: unknown, context: GraphQLContext) => {
       return context.dataloaders.userLoader.load(parent.authorId.toString());
     },
   },
 
   Notification: {
-    recipient: async (parent: any, _: any, context: any) => {
+    recipient: async (parent: INotification, _: unknown, context: GraphQLContext) => {
       return context.dataloaders.userLoader.load(parent.recipientId.toString());
     },
-    video: async (parent: any, _: any, context: any) => {
+    video: async (parent: INotification, _: unknown, context: GraphQLContext) => {
       if (!parent.videoId) return null;
       return context.dataloaders.videoLoader.load(parent.videoId.toString());
     },
