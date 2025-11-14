@@ -45,7 +45,7 @@ export const startSubscriberSyncJob = () => {
           // Publier la mise à jour via subscription
           pubsub.publish('CHANNEL_SUBSCRIBERS_UPDATED', {
             channelSubscribersUpdated: channel,
-            channelId: channel._id.toString(),
+            channelId: (channel as any)._id.toString(),
           });
         } catch (error) {
           logger.error(`Error syncing channel ${channel.username}:`, error);
