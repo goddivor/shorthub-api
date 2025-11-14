@@ -109,7 +109,7 @@ async function startServer() {
   );
 
   // Health check endpoint
-  app.get('/health', (req, res) => {
+  app.get('/health', (_, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
   });
 
