@@ -13,7 +13,7 @@ export enum UserStatus {
 
 export interface IUser extends Document {
   username: string;
-  email: string;
+  email?: string;
   password: string;
   role: UserRole;
   status: UserStatus;
@@ -39,8 +39,8 @@ const UserSchema = new Schema<IUser>(
     },
     email: {
       type: String,
-      required: true,
-      unique: true,
+      required: false,
+      sparse: true,
       lowercase: true,
       trim: true,
     },
@@ -95,7 +95,7 @@ const UserSchema = new Schema<IUser>(
 );
 
 // Indexes
-UserSchema.index({ email: 1 });
+UserSchema.index({ email: 1 }, { unique: true, sparse: true }); // Sparse allows multiple null values
 UserSchema.index({ username: 1 });
 UserSchema.index({ role: 1, status: 1 });
 
