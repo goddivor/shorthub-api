@@ -656,12 +656,17 @@ type Mutation {
   updateUserStatus(id: ID!, status: UserStatus!): User!
   deleteUser(id: ID!): Boolean!
   assignAssistant(videasteId: ID!, assistantId: ID!): User!
+  adminChangeUserPassword(userId: ID!, newPassword: String!): Boolean!
 
   # User account connections (Self-service)
   connectGoogleAccount(email: String!): User!
   disconnectGoogleAccount: User!
   connectWhatsAppAccount(phone: String!): User!
   disconnectWhatsAppAccount: User!
+
+  # Profile image
+  uploadProfileImage(base64Image: String!): User!
+  removeProfileImage: User!
 
   # Channels
   createChannel(input: CreateChannelInput!): Channel!

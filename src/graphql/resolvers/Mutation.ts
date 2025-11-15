@@ -9,6 +9,7 @@ import { VideoComment } from '../../models/VideoComment';
 import { AuthService } from '../../services/auth.service';
 import { YouTubeService } from '../../services/youtube.service';
 import { NotificationService } from '../../services/notification.service';
+import ImageKitService from '../../services/imagekit.service';
 import { hashPassword } from '../../utils/password';
 import { GraphQLError } from 'graphql';
 
@@ -93,6 +94,22 @@ export const Mutation = {
     if (!user) {
       throw new GraphQLError('User not found', { extensions: { code: 'NOT_FOUND' } });
     }
+
+    return true;
+  },
+
+  adminChangeUserPassword: async (_: unknown, { userId, newPassword }: { userId: string; newPassword: string }, context: GraphQLContext) => {
+    requireRole(context, [UserRole.ADMIN]);
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      throw new GraphQLError('User not found', { extensions: { code: 'NOT_FOUND' } });
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+    user.password = hashedPassword;
+    await user.save();
 
     return true;
   },
@@ -507,6 +524,38 @@ export const Mutation = {
     user.phone = undefined;
     user.whatsappLinked = false;
     user.whatsappNotifications = false;
+    await user.save();
+
+    return user;
+  },
+
+  // Profile image
+  uploadProfileImage: async (_: unknown, { base64Image }: { base64Image: string }, context: GraphQLContext) => {
+    const user = requireAuth(context);
+
+    if (!ImageKitService.isConfigured()) {
+      throw new GraphQLError('Image upload service is not configured');
+    }
+
+    try {
+      // Upload image to ImageKit
+      const fileName = `profile-${(user as unknown as { _id: { toString: () => string } })._id.toString()}-${Date.now()}.jpg`;
+      const imageUrl = await ImageKitService.uploadBase64Image(base64Image, fileName, 'profile-images');
+
+      // Update user profile
+      user.profileImage = imageUrl;
+      await user.save();
+
+      return user;
+    } catch (error) {
+      throw new GraphQLError('Failed to upload profile image');
+    }
+  },
+
+  removeProfileImage: async (_: unknown, __: unknown, context: GraphQLContext) => {
+    const user = requireAuth(context);
+
+    user.profileImage = undefined;
     await user.save();
 
     return user;
