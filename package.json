@@ -35,6 +35,7 @@
     "graphql-scalars": "^1.23.0",
     "graphql-subscriptions": "^2.0.0",
     "graphql-ws": "^5.15.0",
+    "imagekit": "^6.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.1.1",
     "node-cron": "^3.0.3",
