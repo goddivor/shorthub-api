@@ -5,24 +5,7 @@ import { Notification, NotificationType, INotification } from '../models/Notific
 import { IUser } from '../models/User';
 import { IVideo } from '../models/Video';
 import { pubsub } from '../context';
-
-// Twilio (optionnel)
-interface TwilioClient {
-  messages: {
-    create: (params: { from: string; to: string; body: string }) => Promise<unknown>;
-  };
-}
-
-let twilioClient: TwilioClient | null = null;
-if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const twilio = require('twilio');
-    twilioClient = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
-  } catch (error) {
-    logger.warn('Twilio not configured or installed');
-  }
-}
+import { WhatsAppService } from './whatsapp.service';
 
 // Nodemailer transporter
 const emailTransporter = nodemailer.createTransport({
@@ -76,9 +59,11 @@ export class NotificationService {
     // Envoyer par WhatsApp si activé
     if (recipient.whatsappNotifications && recipient.phone && recipient.whatsappLinked) {
       try {
-        await this.sendWhatsApp(recipient.phone, message);
-        notification.sentViaWhatsApp = true;
-        notification.whatsappSentAt = new Date();
+        const success = await WhatsAppService.sendTextMessage(recipient.phone, message);
+        if (success) {
+          notification.sentViaWhatsApp = true;
+          notification.whatsappSentAt = new Date();
+        }
       } catch (error) {
         logger.error('Failed to send WhatsApp notification:', error);
       }
@@ -123,32 +108,6 @@ export class NotificationService {
       logger.info(`Email sent to ${to}`);
     } catch (error) {
       logger.error('Email sending error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Envoie un message WhatsApp via Twilio
-   */
-  private static async sendWhatsApp(phone: string, message: string): Promise<void> {
-    if (!twilioClient) {
-      logger.warn('Twilio not configured, skipping WhatsApp notification');
-      return;
-    }
-
-    try {
-      // Le numéro doit être au format international: +33612345678
-      const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`;
-
-      await twilioClient.messages.create({
-        from: env.TWILIO_WHATSAPP_FROM,
-        to: `whatsapp:${formattedPhone}`,
-        body: message,
-      });
-
-      logger.info(`WhatsApp sent to ${formattedPhone}`);
-    } catch (error) {
-      logger.error('WhatsApp sending error:', error);
       throw error;
     }
   }
@@ -242,6 +201,15 @@ export class NotificationService {
   ): Promise<INotification> {
     const message = `Une nouvelle vidéo vous a été assignée pour le ${new Date(scheduledDate).toLocaleDateString('fr-FR')}.`;
 
+    // Envoyer via WhatsApp avec message formaté si activé
+    if (recipient.whatsappNotifications && recipient.phone && recipient.whatsappLinked) {
+      await WhatsAppService.notifyVideoAssigned(
+        recipient.phone,
+        video.title || 'Sans titre',
+        scheduledDate
+      );
+    }
+
     return await this.createAndSend({
       recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
       recipient,
@@ -259,6 +227,15 @@ export class NotificationService {
   ): Promise<INotification> {
     const message = `⏰ Rappel: Il vous reste ${hoursRemaining}h pour réaliser la vidéo "${video.title || 'Sans titre'}".`;
 
+    // Envoyer via WhatsApp avec message formaté si activé
+    if (recipient.whatsappNotifications && recipient.phone && recipient.whatsappLinked) {
+      await WhatsAppService.notifyDeadlineReminder(
+        recipient.phone,
+        video.title || 'Sans titre',
+        hoursRemaining
+      );
+    }
+
     return await this.createAndSend({
       recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
       recipient,
@@ -275,6 +252,15 @@ export class NotificationService {
     completedBy: IUser
   ): Promise<INotification> {
     const message = `✅ ${completedBy.username} a marqué la vidéo "${video.title || 'Sans titre'}" comme complétée.`;
+
+    // Envoyer via WhatsApp avec message formaté si activé (pour l'admin)
+    if (recipient.whatsappNotifications && recipient.phone && recipient.whatsappLinked) {
+      await WhatsAppService.notifyVideoCompleted(
+        recipient.phone,
+        video.title || 'Sans titre',
+        completedBy.username
+      );
+    }
 
     return await this.createAndSend({
       recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
@@ -296,6 +282,15 @@ export class NotificationService {
       message += `\n\nFeedback: ${feedback}`;
     }
 
+    // Envoyer via WhatsApp avec message formaté si activé
+    if (recipient.whatsappNotifications && recipient.phone && recipient.whatsappLinked) {
+      await WhatsAppService.notifyVideoValidated(
+        recipient.phone,
+        video.title || 'Sans titre',
+        feedback
+      );
+    }
+
     return await this.createAndSend({
       recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
       recipient,
@@ -312,6 +307,15 @@ export class NotificationService {
     feedback: string
   ): Promise<INotification> {
     const message = `❌ Votre vidéo "${video.title || 'Sans titre'}" a été rejetée.\n\nRaison: ${feedback}`;
+
+    // Envoyer via WhatsApp avec message formaté si activé
+    if (recipient.whatsappNotifications && recipient.phone && recipient.whatsappLinked) {
+      await WhatsAppService.notifyVideoRejected(
+        recipient.phone,
+        video.title || 'Sans titre',
+        feedback
+      );
+    }
 
     return await this.createAndSend({
       recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
@@ -333,6 +337,11 @@ export class NotificationService {
       status === 'BLOCKED'
         ? '🚫 Votre compte a été bloqué. Contactez un administrateur pour plus d\'informations.'
         : '✅ Votre compte a été débloqué. Vous pouvez à nouveau vous connecter.';
+
+    // Envoyer via WhatsApp avec message formaté si activé
+    if (recipient.whatsappNotifications && recipient.phone && recipient.whatsappLinked) {
+      await WhatsAppService.notifyAccountStatusChanged(recipient.phone, status);
+    }
 
     return await this.createAndSend({
       recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
