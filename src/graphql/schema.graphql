@@ -276,12 +276,14 @@ type Notification {
   id: ID!
   recipient: User!
   type: NotificationType!
-  video: Video
+  short: Short
   message: String!
   sentViaEmail: Boolean!
   sentViaWhatsApp: Boolean!
+  sentViaPlatform: Boolean!
   emailSentAt: DateTime
   whatsappSentAt: DateTime
+  platformSentAt: DateTime
   read: Boolean!
   readAt: DateTime
   createdAt: DateTime!

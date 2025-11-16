@@ -17,8 +17,10 @@ export interface INotification extends Document {
   message: string;
   sentViaEmail: boolean;
   sentViaWhatsApp: boolean;
+  sentViaPlatform: boolean;
   emailSentAt?: Date;
   whatsappSentAt?: Date;
+  platformSentAt?: Date;
   read: boolean;
   readAt?: Date;
   createdAt: Date;
@@ -53,10 +55,17 @@ const NotificationSchema = new Schema<INotification>(
       type: Boolean,
       default: false,
     },
+    sentViaPlatform: {
+      type: Boolean,
+      default: false,
+    },
     emailSentAt: {
       type: Date,
     },
     whatsappSentAt: {
+      type: Date,
+    },
+    platformSentAt: {
       type: Date,
     },
     read: {

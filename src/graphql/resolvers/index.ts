@@ -195,7 +195,7 @@ export const resolvers = {
     recipient: async (parent: INotification, _: unknown, context: GraphQLContext) => {
       return context.dataloaders.userLoader.load(parent.recipientId.toString());
     },
-    video: async (parent: INotification, _: unknown, context: GraphQLContext) => {
+    short: async (parent: INotification, _: unknown, context: GraphQLContext) => {
       if (!parent.videoId) return null;
       return context.dataloaders.videoLoader.load(parent.videoId.toString());
     },

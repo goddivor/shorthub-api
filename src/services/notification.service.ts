@@ -7,9 +7,16 @@ import { IVideo } from '../models/Video';
 import { pubsub } from '../context';
 
 // Twilio (optionnel)
-let twilioClient: any = null;
+interface TwilioClient {
+  messages: {
+    create: (params: { from: string; to: string; body: string }) => Promise<unknown>;
+  };
+}
+
+let twilioClient: TwilioClient | null = null;
 if (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN) {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const twilio = require('twilio');
     twilioClient = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
   } catch (error) {
@@ -50,6 +57,8 @@ export class NotificationService {
       message,
       sentViaEmail: false,
       sentViaWhatsApp: false,
+      sentViaPlatform: true,
+      platformSentAt: new Date(),
       read: false,
     });
 
@@ -234,11 +243,11 @@ export class NotificationService {
     const message = `Une nouvelle vidéo vous a été assignée pour le ${new Date(scheduledDate).toLocaleDateString('fr-FR')}.`;
 
     return await this.createAndSend({
-      recipientId: (recipient as any)._id.toString(),
+      recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
       recipient,
       type: NotificationType.VIDEO_ASSIGNED,
       message,
-      videoId: (video as any)._id.toString(),
+      videoId: (video as unknown as { _id: { toString: () => string } })._id.toString(),
       video,
     });
   }
@@ -251,11 +260,11 @@ export class NotificationService {
     const message = `⏰ Rappel: Il vous reste ${hoursRemaining}h pour réaliser la vidéo "${video.title || 'Sans titre'}".`;
 
     return await this.createAndSend({
-      recipientId: (recipient as any)._id.toString(),
+      recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
       recipient,
       type: NotificationType.DEADLINE_REMINDER,
       message,
-      videoId: (video as any)._id.toString(),
+      videoId: (video as unknown as { _id: { toString: () => string } })._id.toString(),
       video,
     });
   }
@@ -268,11 +277,11 @@ export class NotificationService {
     const message = `✅ ${completedBy.username} a marqué la vidéo "${video.title || 'Sans titre'}" comme complétée.`;
 
     return await this.createAndSend({
-      recipientId: (recipient as any)._id.toString(),
+      recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
       recipient,
       type: NotificationType.VIDEO_COMPLETED,
       message,
-      videoId: (video as any)._id.toString(),
+      videoId: (video as unknown as { _id: { toString: () => string } })._id.toString(),
       video,
     });
   }
@@ -288,11 +297,11 @@ export class NotificationService {
     }
 
     return await this.createAndSend({
-      recipientId: (recipient as any)._id.toString(),
+      recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
       recipient,
       type: NotificationType.VIDEO_VALIDATED,
       message,
-      videoId: (video as any)._id.toString(),
+      videoId: (video as unknown as { _id: { toString: () => string } })._id.toString(),
       video,
     });
   }
@@ -305,11 +314,11 @@ export class NotificationService {
     const message = `❌ Votre vidéo "${video.title || 'Sans titre'}" a été rejetée.\n\nRaison: ${feedback}`;
 
     return await this.createAndSend({
-      recipientId: (recipient as any)._id.toString(),
+      recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
       recipient,
       type: NotificationType.VIDEO_REJECTED,
       message,
-      videoId: (video as any)._id.toString(),
+      videoId: (video as unknown as { _id: { toString: () => string } })._id.toString(),
       video,
     });
   }
@@ -326,7 +335,7 @@ export class NotificationService {
         : '✅ Votre compte a été débloqué. Vous pouvez à nouveau vous connecter.';
 
     return await this.createAndSend({
-      recipientId: (recipient as any)._id.toString(),
+      recipientId: (recipient as unknown as { _id: { toString: () => string } })._id.toString(),
       recipient,
       type,
       message,
