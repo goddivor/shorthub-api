@@ -5,7 +5,11 @@ import { ShortComment } from '../../models/ShortComment';
 import { SourceChannel } from '../../models/SourceChannel';
 import { AdminChannel } from '../../models/AdminChannel';
 import { User } from '../../models/User';
+import { Notification, NotificationType } from '../../models/Notification';
+import { IVideo } from '../../models/Video';
 import { YouTubeService } from '../../services/youtube.service';
+import { NotificationService } from '../../services/notification.service';
+import EmailService from '../../services/email/EmailService';
 import { GraphQLError } from 'graphql';
 import { requireAuth, requireAdmin } from '../../middlewares/auth';
 import { Types } from 'mongoose';
@@ -264,7 +268,21 @@ export const ShortResolvers = {
 
       await short.save();
 
-      // TODO: Envoyer notification au vidéaste
+      // Envoyer notification au vidéaste
+      await NotificationService.notifyVideoAssigned(videaste, short as unknown as IVideo, short.deadline!);
+
+      // Envoyer email si le vidéaste a activé les notifications email
+      if (videaste.emailNotifications && videaste.email) {
+        const sourceChannel = await SourceChannel.findById(short.sourceChannel);
+        if (sourceChannel) {
+          await EmailService.sendVideoAssignedEmail({
+            videaste,
+            video: short as unknown as IVideo,
+            assignedBy: adminUser,
+            channelName: sourceChannel.channelName,
+          });
+        }
+      }
 
       return await Short.findById(short._id)
         .populate('sourceChannel')
@@ -276,6 +294,7 @@ export const ShortResolvers = {
     // Réassigner un short à un autre vidéaste
     reassignShort: async (_: unknown, { shortId, newVideasteId }: { shortId: string; newVideasteId: string }, context: GraphQLContext) => {
       requireAdmin(context);
+      const adminUser = context.user!;
 
       const short = await Short.findById(shortId);
       if (!short) {
@@ -291,6 +310,24 @@ export const ShortResolvers = {
 
       await short.save();
 
+      // Envoyer notification au nouveau vidéaste
+      if (short.deadline) {
+        await NotificationService.notifyVideoAssigned(newVideaste, short as unknown as IVideo, short.deadline);
+
+        // Envoyer email si le vidéaste a activé les notifications email
+        if (newVideaste.emailNotifications && newVideaste.email) {
+          const sourceChannel = await SourceChannel.findById(short.sourceChannel);
+          if (sourceChannel) {
+            await EmailService.sendVideoAssignedEmail({
+              videaste: newVideaste,
+              video: short as unknown as IVideo,
+              assignedBy: adminUser,
+              channelName: sourceChannel.channelName,
+            });
+          }
+        }
+      }
+
       return await Short.findById(short._id)
         .populate('sourceChannel')
         .populate('assignedTo')
@@ -300,7 +337,7 @@ export const ShortResolvers = {
 
     // Mettre à jour le statut d'un short
     updateShortStatus: async (_: unknown, { input }: { input: { shortId: string; status: string; adminFeedback?: string } }, context: GraphQLContext) => {
-      requireAuth(context);
+      const currentUser = requireAuth(context);
 
       const short = await Short.findById(input.shortId);
       if (!short) {
@@ -314,21 +351,109 @@ export const ShortResolvers = {
         short.completedAt = new Date();
       } else if (input.status === ShortStatus.VALIDATED) {
         short.validatedAt = new Date();
+        if (input.adminFeedback !== undefined) {
+          short.adminFeedback = input.adminFeedback;
+        }
+      } else if (input.status === ShortStatus.REJECTED) {
+        if (input.adminFeedback !== undefined) {
+          short.adminFeedback = input.adminFeedback;
+        }
       } else if (input.status === ShortStatus.PUBLISHED) {
         short.publishedAt = new Date();
       }
 
-      if (input.adminFeedback !== undefined) {
-        short.adminFeedback = input.adminFeedback;
-      }
-
       await short.save();
 
-      return await Short.findById(short._id)
+      const updatedShort = await Short.findById(short._id)
         .populate('sourceChannel')
         .populate('assignedTo')
         .populate('assignedBy')
         .populate('targetChannel');
+
+      // Gérer les notifications et emails selon le statut
+      if (input.status === ShortStatus.COMPLETED && short.assignedBy) {
+        // Vidéaste a complété le short - notifier l'admin
+        const admin = await User.findById(short.assignedBy);
+        const videaste = await User.findById(short.assignedTo);
+
+        await Notification.create({
+          recipientId: short.assignedBy,
+          type: NotificationType.VIDEO_COMPLETED,
+          videoId: short._id,
+          message: `Un short a été marqué comme complété`,
+          sentViaEmail: admin?.emailNotifications || false,
+          sentViaPlatform: true,
+          platformSentAt: new Date(),
+        });
+
+        // Envoyer email à l'admin
+        if (admin && admin.emailNotifications && admin.email && videaste && updatedShort) {
+          const sourceChannel = await SourceChannel.findById(short.sourceChannel);
+          if (sourceChannel) {
+            await EmailService.sendVideoCompletedEmail({
+              admin,
+              video: updatedShort as unknown as IVideo,
+              videaste,
+              channelName: sourceChannel.channelName,
+            });
+          }
+        }
+      } else if (input.status === ShortStatus.VALIDATED && short.assignedTo) {
+        // Admin a validé le short - notifier le vidéaste
+        const videaste = await User.findById(short.assignedTo);
+
+        await Notification.create({
+          recipientId: short.assignedTo,
+          type: NotificationType.VIDEO_VALIDATED,
+          videoId: short._id,
+          message: `Votre short a été validé`,
+          sentViaEmail: videaste?.emailNotifications || false,
+          sentViaPlatform: true,
+          platformSentAt: new Date(),
+        });
+
+        // Envoyer email au vidéaste
+        if (videaste && videaste.emailNotifications && videaste.email && updatedShort) {
+          const sourceChannel = await SourceChannel.findById(short.sourceChannel);
+          if (sourceChannel) {
+            await EmailService.sendVideoValidatedEmail({
+              videaste,
+              video: updatedShort as unknown as IVideo,
+              validatedBy: currentUser,
+              channelName: sourceChannel.channelName,
+            });
+          }
+        }
+      } else if (input.status === ShortStatus.REJECTED && short.assignedTo) {
+        // Admin a rejeté le short - notifier le vidéaste
+        const videaste = await User.findById(short.assignedTo);
+
+        await Notification.create({
+          recipientId: short.assignedTo,
+          type: NotificationType.VIDEO_REJECTED,
+          videoId: short._id,
+          message: `Votre short a été rejeté`,
+          sentViaEmail: videaste?.emailNotifications || false,
+          sentViaPlatform: true,
+          platformSentAt: new Date(),
+        });
+
+        // Envoyer email au vidéaste
+        if (videaste && videaste.emailNotifications && videaste.email && updatedShort) {
+          const sourceChannel = await SourceChannel.findById(short.sourceChannel);
+          if (sourceChannel) {
+            await EmailService.sendVideoRejectedEmail({
+              videaste,
+              video: updatedShort as unknown as IVideo,
+              rejectedBy: currentUser,
+              channelName: sourceChannel.channelName,
+              reason: input.adminFeedback,
+            });
+          }
+        }
+      }
+
+      return updatedShort;
     },
 
     // Supprimer un short

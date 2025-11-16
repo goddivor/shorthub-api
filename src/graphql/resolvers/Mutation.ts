@@ -9,6 +9,7 @@ import { VideoComment } from '../../models/VideoComment';
 import { AuthService } from '../../services/auth.service';
 import { YouTubeService } from '../../services/youtube.service';
 import { NotificationService } from '../../services/notification.service';
+import EmailService from '../../services/email/EmailService';
 import ImageKitService from '../../services/imagekit.service';
 import { hashPassword } from '../../utils/password';
 import { GraphQLError } from 'graphql';
@@ -67,7 +68,7 @@ export const Mutation = {
   },
 
   updateUserStatus: async (_: unknown, { id, status }: { id: string; status: string }, context: GraphQLContext) => {
-    requireRole(context, [UserRole.ADMIN]);
+    const admin = requireRole(context, [UserRole.ADMIN]);
 
     const user = await User.findByIdAndUpdate(id, { status }, { new: true });
 
@@ -81,7 +82,24 @@ export const Mutation = {
       type: status === UserStatus.BLOCKED ? 'ACCOUNT_BLOCKED' : 'ACCOUNT_UNBLOCKED',
       message: `Your account has been ${status.toLowerCase()}`,
       sentViaEmail: user.emailNotifications,
+      sentViaPlatform: true,
+      platformSentAt: new Date(),
     });
+
+    // Send email notification
+    if (user.emailNotifications && user.email) {
+      if (status === UserStatus.BLOCKED) {
+        await EmailService.sendAccountBlockedEmail({
+          user,
+          admin,
+        });
+      } else {
+        await EmailService.sendAccountUnblockedEmail({
+          user,
+          admin,
+        });
+      }
+    }
 
     return user;
   },
@@ -251,6 +269,19 @@ export const Mutation = {
     const videaste = await User.findById(input.videasteId);
     if (videaste) {
       await NotificationService.notifyVideoAssigned(videaste, video, new Date(input.scheduledDate));
+
+      // Send email if videaste has email notifications enabled
+      if (videaste.emailNotifications && videaste.email) {
+        const sourceChannel = await Channel.findById(video.sourceChannelId);
+        if (sourceChannel) {
+          await EmailService.sendVideoAssignedEmail({
+            videaste,
+            video,
+            assignedBy: admin,
+            channelName: sourceChannel.username,
+          });
+        }
+      }
     }
 
     return video;
@@ -277,13 +308,26 @@ export const Mutation = {
     const videaste = await User.findById(newVideasteId);
     if (videaste && video.scheduledDate) {
       await NotificationService.notifyVideoAssigned(videaste, video, video.scheduledDate);
+
+      // Send email if videaste has email notifications enabled
+      if (videaste.emailNotifications && videaste.email) {
+        const sourceChannel = await Channel.findById(video.sourceChannelId);
+        if (sourceChannel) {
+          await EmailService.sendVideoAssignedEmail({
+            videaste,
+            video,
+            assignedBy: admin,
+            channelName: sourceChannel.username,
+          });
+        }
+      }
     }
 
     return video;
   },
 
   updateVideoStatus: async (_: unknown, { input }: { input: { videoId: string; status: string; adminFeedback?: string } }, context: GraphQLContext) => {
-    requireAuth(context);
+    const currentUser = requireAuth(context);
 
     const video = await Video.findById(input.videoId);
 
@@ -298,21 +342,95 @@ export const Mutation = {
     } else if (input.status === VideoStatus.VALIDATED) {
       updateData.validatedAt = new Date();
       updateData.adminFeedback = input.adminFeedback;
+    } else if (input.status === VideoStatus.REJECTED) {
+      updateData.adminFeedback = input.adminFeedback;
     } else if (input.status === VideoStatus.PUBLISHED) {
       updateData.publishedAt = new Date();
     }
 
     const updatedVideo = await Video.findByIdAndUpdate(input.videoId, updateData, { new: true });
 
-    // Create notification
+    // Handle notifications and emails based on status
     if (input.status === VideoStatus.COMPLETED && video.assignedBy) {
+      // Videaste completed the video - notify admin
+      const admin = await User.findById(video.assignedBy);
+      const videaste = await User.findById(video.assignedTo);
+
       await Notification.create({
         recipientId: video.assignedBy,
         type: 'VIDEO_COMPLETED',
         videoId: video._id,
         message: `A video has been marked as completed`,
-        sentViaEmail: true,
+        sentViaEmail: admin?.emailNotifications || false,
+        sentViaPlatform: true,
+        platformSentAt: new Date(),
       });
+
+      // Send email to admin
+      if (admin && admin.emailNotifications && admin.email && videaste && updatedVideo) {
+        const sourceChannel = await Channel.findById(video.sourceChannelId);
+        if (sourceChannel) {
+          await EmailService.sendVideoCompletedEmail({
+            admin,
+            video: updatedVideo,
+            videaste,
+            channelName: sourceChannel.username,
+          });
+        }
+      }
+    } else if (input.status === VideoStatus.VALIDATED && video.assignedTo) {
+      // Admin validated the video - notify videaste
+      const videaste = await User.findById(video.assignedTo);
+
+      await Notification.create({
+        recipientId: video.assignedTo,
+        type: 'VIDEO_VALIDATED',
+        videoId: video._id,
+        message: `Your video has been validated`,
+        sentViaEmail: videaste?.emailNotifications || false,
+        sentViaPlatform: true,
+        platformSentAt: new Date(),
+      });
+
+      // Send email to videaste
+      if (videaste && videaste.emailNotifications && videaste.email && updatedVideo) {
+        const sourceChannel = await Channel.findById(video.sourceChannelId);
+        if (sourceChannel) {
+          await EmailService.sendVideoValidatedEmail({
+            videaste,
+            video: updatedVideo,
+            validatedBy: currentUser,
+            channelName: sourceChannel.username,
+          });
+        }
+      }
+    } else if (input.status === VideoStatus.REJECTED && video.assignedTo) {
+      // Admin rejected the video - notify videaste
+      const videaste = await User.findById(video.assignedTo);
+
+      await Notification.create({
+        recipientId: video.assignedTo,
+        type: 'VIDEO_REJECTED',
+        videoId: video._id,
+        message: `Your video has been rejected`,
+        sentViaEmail: videaste?.emailNotifications || false,
+        sentViaPlatform: true,
+        platformSentAt: new Date(),
+      });
+
+      // Send email to videaste
+      if (videaste && videaste.emailNotifications && videaste.email && updatedVideo) {
+        const sourceChannel = await Channel.findById(video.sourceChannelId);
+        if (sourceChannel) {
+          await EmailService.sendVideoRejectedEmail({
+            videaste,
+            video: updatedVideo,
+            rejectedBy: currentUser,
+            channelName: sourceChannel.username,
+            reason: input.adminFeedback,
+          });
+        }
+      }
     }
 
     return updatedVideo;
