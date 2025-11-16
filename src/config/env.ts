@@ -17,9 +17,9 @@ interface EnvConfig {
   EMAIL_USER?: string;
   EMAIL_PASSWORD?: string;
   EMAIL_FROM?: string;
-  TWILIO_ACCOUNT_SID?: string;
-  TWILIO_AUTH_TOKEN?: string;
-  TWILIO_WHATSAPP_FROM?: string;
+  WHATSAPP_ACCESS_TOKEN?: string;
+  WHATSAPP_PHONE_NUMBER_ID?: string;
+  WHATSAPP_API_VERSION?: string;
   REDIS_HOST?: string;
   REDIS_PORT?: number;
   REDIS_PASSWORD?: string;
@@ -54,9 +54,9 @@ export const env: EnvConfig = {
   EMAIL_USER: getEnvVarOptional('EMAIL_USER'),
   EMAIL_PASSWORD: getEnvVarOptional('EMAIL_PASSWORD'),
   EMAIL_FROM: getEnvVarOptional('EMAIL_FROM', 'ShortHub <noreply@shorthub.com>'),
-  TWILIO_ACCOUNT_SID: getEnvVarOptional('TWILIO_ACCOUNT_SID'),
-  TWILIO_AUTH_TOKEN: getEnvVarOptional('TWILIO_AUTH_TOKEN'),
-  TWILIO_WHATSAPP_FROM: getEnvVarOptional('TWILIO_WHATSAPP_FROM'),
+  WHATSAPP_ACCESS_TOKEN: getEnvVarOptional('WHATSAPP_ACCESS_TOKEN'),
+  WHATSAPP_PHONE_NUMBER_ID: getEnvVarOptional('WHATSAPP_PHONE_NUMBER_ID'),
+  WHATSAPP_API_VERSION: getEnvVarOptional('WHATSAPP_API_VERSION', 'v18.0'),
   REDIS_HOST: getEnvVarOptional('REDIS_HOST', 'localhost'),
   REDIS_PORT: parseInt(getEnvVarOptional('REDIS_PORT', '6379') || '6379'),
   REDIS_PASSWORD: getEnvVarOptional('REDIS_PASSWORD'),
