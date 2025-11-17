@@ -45,7 +45,7 @@ const SourceChannelSchema = new Schema<ISourceChannel>(
 );
 
 // Indexes
-SourceChannelSchema.index({ channelId: 1 });
+// channelId index is automatically created by unique: true in schema
 SourceChannelSchema.index({ contentType: 1 });
 
 export const SourceChannel = mongoose.model<ISourceChannel>('SourceChannel', SourceChannelSchema);

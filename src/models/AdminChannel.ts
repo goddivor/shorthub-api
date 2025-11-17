@@ -47,6 +47,6 @@ const AdminChannelSchema = new Schema<IAdminChannel>(
 );
 
 // Indexes
-AdminChannelSchema.index({ channelId: 1 });
+// channelId index is automatically created by unique: true in schema
 
 export const AdminChannel = mongoose.model<IAdminChannel>('AdminChannel', AdminChannelSchema);

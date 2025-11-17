@@ -123,8 +123,8 @@ const ChannelSchema = new Schema<IChannel>(
 );
 
 // Indexes
+// youtubeUrl and channelId indexes are automatically created by unique: true in schema
 ChannelSchema.index({ channelPurpose: 1, language: 1 });
 ChannelSchema.index({ ownedBy: 1 });
-ChannelSchema.index({ youtubeUrl: 1 });
 
 export const Channel = mongoose.model<IChannel>('Channel', ChannelSchema);
