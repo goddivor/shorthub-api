@@ -5,6 +5,8 @@ export enum ContentType {
   VA_AVEC_EDIT = 'VA_AVEC_EDIT',
   VF_SANS_EDIT = 'VF_SANS_EDIT',
   VF_AVEC_EDIT = 'VF_AVEC_EDIT',
+  VO_SANS_EDIT = 'VO_SANS_EDIT', // Version Originale sans édition (source uniquement)
+  VO_AVEC_EDIT = 'VO_AVEC_EDIT', // Version Originale avec édition (source uniquement)
 }
 
 export interface IAdminChannel extends Document {
