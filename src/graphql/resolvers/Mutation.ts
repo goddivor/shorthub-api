@@ -5,6 +5,7 @@ import { User, UserRole, UserStatus } from '../../models/User';
 import { Channel } from '../../models/Channel';
 import { Video, VideoStatus } from '../../models/Video';
 import { Notification, NotificationType } from '../../models/Notification';
+import { NotificationSettings } from '../../models/NotificationSettings';
 import { VideoComment } from '../../models/VideoComment';
 import { AuthService } from '../../services/auth.service';
 import { YouTubeService } from '../../services/youtube.service';
@@ -503,6 +504,13 @@ export const Mutation = {
     await Notification.updateMany({ recipientId: (user as unknown as { _id: string })._id, read: false }, { read: true, readAt: new Date() });
 
     return true;
+  },
+
+  updateNotificationSettings: async (_: unknown, { input }: { input: { platformNotificationsEnabled?: boolean; emailNotificationsEnabled?: boolean; whatsappNotificationsEnabled?: boolean } }, context: GraphQLContext) => {
+    requireRole(context, [UserRole.ADMIN]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return await (NotificationSettings as any).updateSettings(input);
   },
 
   // Batch operations

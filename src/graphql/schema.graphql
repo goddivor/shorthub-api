@@ -300,6 +300,15 @@ type ActivityLog {
   createdAt: DateTime!
 }
 
+type NotificationSettings {
+  id: ID!
+  platformNotificationsEnabled: Boolean!
+  emailNotificationsEnabled: Boolean!
+  whatsappNotificationsEnabled: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
 # ============================================
 # ANALYTICS
 # ============================================
@@ -482,6 +491,12 @@ input ShortFilterInput {
   endDate: DateTime
 }
 
+input UpdateNotificationSettingsInput {
+  platformNotificationsEnabled: Boolean
+  emailNotificationsEnabled: Boolean
+  whatsappNotificationsEnabled: Boolean
+}
+
 input VideoFilterInput {
   status: VideoStatus
   assignedToId: ID
@@ -608,6 +623,7 @@ type Query {
     unreadOnly: Boolean
   ): NotificationsConnection!
   unreadNotificationsCount: Int!
+  notificationSettings: NotificationSettings!
 
   # Analytics
   dashboardAnalytics: DashboardAnalytics!
@@ -690,6 +706,7 @@ type Mutation {
   # Notifications
   markNotificationAsRead(id: ID!): Notification!
   markAllNotificationsAsRead: Boolean!
+  updateNotificationSettings(input: UpdateNotificationSettingsInput!): NotificationSettings!
 
   # Batch operations
   assignMultipleVideos(videoIds: [ID!]!, videasteId: ID!, scheduledDates: [DateTime!]!): [Video!]!

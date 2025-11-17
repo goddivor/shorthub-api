@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { GraphQLContext } from '../../context';
 import { requireAuth, requireRole } from '../../middlewares/auth';
 import { User, UserRole } from '../../models/User';
 import { Channel } from '../../models/Channel';
 import { Video } from '../../models/Video';
 import { Notification } from '../../models/Notification';
+import { NotificationSettings } from '../../models/NotificationSettings';
 import { ActivityLog } from '../../models/ActivityLog';
 import { AnalyticsService } from '../../services/analytics.service';
 
@@ -192,6 +194,11 @@ export const Query = {
   unreadNotificationsCount: async (_: any, __: any, context: GraphQLContext) => {
     const user = requireAuth(context);
     return await Notification.countDocuments({ recipientId: user._id, read: false });
+  },
+
+  notificationSettings: async (_: any, __: any, context: GraphQLContext) => {
+    requireRole(context, [UserRole.ADMIN]);
+    return await (NotificationSettings as any).getSettings();
   },
 
   // Analytics
