@@ -45,6 +45,8 @@ enum ContentType {
   VA_AVEC_EDIT  # Version Anglaise avec édition
   VF_SANS_EDIT  # Version Française sans édition
   VF_AVEC_EDIT  # Version Française avec édition
+  VO_SANS_EDIT  # Version Originale sans édition (source uniquement)
+  VO_AVEC_EDIT  # Version Originale avec édition (source uniquement)
 }
 
 enum ChannelPurpose {
