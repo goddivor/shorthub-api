@@ -163,10 +163,15 @@ export const resolvers = {
       return await Notification.find({ videoId: parent._id });
     },
     isLate: (parent: IVideo) => {
-      if (!parent.scheduledDate || parent.status === VideoStatus.PUBLISHED) {
+      if (!parent.scheduledDate) {
         return false;
       }
-      return new Date() > parent.scheduledDate && parent.status !== VideoStatus.VALIDATED;
+      // Statuts où le travail n'est pas encore terminé
+      const incompletedStatuses = [VideoStatus.ASSIGNED, VideoStatus.IN_PROGRESS];
+      if (!incompletedStatuses.includes(parent.status)) {
+        return false;
+      }
+      return new Date() > parent.scheduledDate;
     },
     daysUntilDeadline: (parent: IVideo) => {
       if (!parent.scheduledDate) return null;

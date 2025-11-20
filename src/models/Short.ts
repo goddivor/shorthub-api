@@ -133,4 +133,17 @@ ShortSchema.index({ deadline: 1 });
 // Index composé pour empêcher les shorts retenus de réapparaître dans les rolls
 ShortSchema.index({ sourceChannel: 1, status: 1 });
 
+// Virtual pour vérifier si le short est en retard
+ShortSchema.virtual('isLate').get(function () {
+  if (!this.deadline) {
+    return false;
+  }
+  // Statuts où le travail n'est pas encore terminé
+  const incompletedStatuses = [ShortStatus.ASSIGNED, ShortStatus.IN_PROGRESS];
+  if (!incompletedStatuses.includes(this.status)) {
+    return false;
+  }
+  return new Date() > this.deadline;
+});
+
 export const Short = mongoose.model<IShort>('Short', ShortSchema);

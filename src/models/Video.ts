@@ -110,10 +110,15 @@ VideoSchema.index({ scheduledDate: 1 });
 
 // Virtual pour vérifier si la vidéo est en retard
 VideoSchema.virtual('isLate').get(function () {
-  if (!this.scheduledDate || this.status === VideoStatus.PUBLISHED) {
+  if (!this.scheduledDate) {
     return false;
   }
-  return new Date() > this.scheduledDate && this.status !== VideoStatus.VALIDATED;
+  // Statuts où le travail n'est pas encore terminé
+  const incompletedStatuses = [VideoStatus.ASSIGNED, VideoStatus.IN_PROGRESS];
+  if (!incompletedStatuses.includes(this.status)) {
+    return false;
+  }
+  return new Date() > this.scheduledDate;
 });
 
 export const Video = mongoose.model<IVideo>('Video', VideoSchema);

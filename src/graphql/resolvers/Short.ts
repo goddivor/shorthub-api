@@ -38,6 +38,32 @@ export const ShortResolvers = {
         .populate('author')
         .sort({ createdAt: -1 });
     },
+
+    isLate: (parent: IShort) => {
+      if (!parent.deadline) {
+        return false;
+      }
+      // Statuts où le travail n'est pas encore terminé
+      const incompletedStatuses = [ShortStatus.ASSIGNED, ShortStatus.IN_PROGRESS];
+      if (!incompletedStatuses.includes(parent.status)) {
+        return false;
+      }
+      return new Date() > parent.deadline;
+    },
+
+    daysUntilDeadline: (parent: IShort) => {
+      if (!parent.deadline) return null;
+      const now = new Date();
+      const deadline = new Date(parent.deadline);
+      const diffTime = deadline.getTime() - now.getTime();
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    },
+
+    timeToComplete: (parent: IShort) => {
+      if (!parent.completedAt || !parent.assignedAt) return null;
+      const diffTime = parent.completedAt.getTime() - parent.assignedAt.getTime();
+      return diffTime / (1000 * 60 * 60); // Hours
+    },
   },
 
   Query: {

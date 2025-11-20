@@ -225,6 +225,9 @@ type Short {
   notes: String                   # Notes de l'admin
   adminFeedback: String           # Feedback de l'admin
   comments: [ShortComment!]!      # Commentaires
+  isLate: Boolean!                # En retard (deadline dépassée et pas encore complété)
+  daysUntilDeadline: Int          # Jours restants avant deadline
+  timeToComplete: Float           # Temps de complétion en heures
   createdAt: DateTime!
   updatedAt: DateTime!
 }
