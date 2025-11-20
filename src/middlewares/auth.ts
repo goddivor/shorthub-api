@@ -1,4 +1,5 @@
 import { GraphQLError } from 'graphql';
+import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../utils/jwt';
 import { User } from '../models/User';
 import { GraphQLContext } from '../context';
@@ -47,4 +48,46 @@ export const requireRole = (context: GraphQLContext, allowedRoles: string[]) => 
 
 export const requireAdmin = (context: GraphQLContext) => {
   return requireRole(context, ['ADMIN']);
+};
+
+// Express middleware pour authentifier les requêtes REST API
+export interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    username: string;
+    role: string;
+  };
+}
+
+export const authenticate = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const token = req.headers.authorization;
+
+    if (!token) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    const user = await getUser(token);
+
+    if (!user) {
+      res.status(401).json({ error: 'Invalid or expired token' });
+      return;
+    }
+
+    // Ajouter l'utilisateur à la requête
+    (req as AuthRequest).user = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+    };
+
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Authentication failed' });
+  }
 };

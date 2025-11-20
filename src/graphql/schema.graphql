@@ -228,6 +228,14 @@ type Short {
   isLate: Boolean!                # En retard (deadline dépassée et pas encore complété)
   daysUntilDeadline: Int          # Jours restants avant deadline
   timeToComplete: Float           # Temps de complétion en heures
+  # Google Drive fields
+  driveFileId: String             # ID du fichier sur Google Drive
+  driveFileUrl: String            # URL du fichier sur Google Drive
+  driveFolderId: String           # ID du dossier contenant le fichier
+  uploadedAt: DateTime            # Date d'upload sur Drive
+  fileName: String                # Nom du fichier uploadé
+  fileSize: Int                   # Taille du fichier en bytes
+  mimeType: String                # Type MIME du fichier
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -312,6 +320,14 @@ type NotificationSettings {
   whatsappNotificationsEnabled: Boolean!
   createdAt: DateTime!
   updatedAt: DateTime!
+}
+
+# Google Drive Connection Info
+type GoogleDriveConnectionInfo {
+  isConnected: Boolean!
+  rootFolderId: String
+  rootFolderName: String
+  lastSync: DateTime
 }
 
 # ============================================
@@ -660,6 +676,9 @@ type Query {
   shorts(filter: ShortFilterInput): [Short!]!
   short(id: ID!): Short
   shortsStats: ShortsStats!
+
+  # Google Drive
+  googleDriveConnectionInfo: GoogleDriveConnectionInfo!
 }
 
 # ============================================
@@ -743,6 +762,10 @@ type Mutation {
   # Short Comments
   createShortComment(input: CreateShortCommentInput!): ShortComment!
   deleteShortComment(id: ID!): Boolean!
+
+  # Google Drive
+  getGoogleDriveAuthUrl: String!                              # Obtenir l'URL d'autorisation OAuth
+  disconnectGoogleDrive: Boolean!                             # Déconnecter Google Drive
 }
 
 # ============================================

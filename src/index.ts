@@ -20,6 +20,7 @@ import { pubsub, GraphQLContext } from './context';
 import { logger } from './utils/logger';
 import { AuthService } from './services/auth.service';
 import { startAllJobs } from './jobs';
+import googleDriveRoutes from './routes/googleDrive.routes';
 
 async function startServer() {
   // Connect to MongoDB
@@ -86,13 +87,20 @@ async function startServer() {
 
   await server.start();
 
-  // Middleware
+  // CORS for all routes
   app.use(
-    '/graphql',
-    cors<cors.CorsRequest>({
+    cors({
       origin: env.CORS_ORIGIN,
       credentials: true,
-    }),
+    })
+  );
+
+  // Google Drive API routes
+  app.use('/api/drive', googleDriveRoutes);
+
+  // GraphQL Middleware
+  app.use(
+    '/graphql',
     bodyParser.json(),
     expressMiddleware(server, {
       context: async ({ req }) => {

@@ -12,6 +12,7 @@ import { Notification, INotification } from '../../models/Notification';
 import { SourceChannelResolvers } from './SourceChannel';
 import { AdminChannelResolvers } from './AdminChannel';
 import { ShortResolvers } from './Short';
+import { GoogleDriveResolvers } from './GoogleDrive';
 
 export const resolvers = {
   DateTime: DateTimeScalar,
@@ -22,6 +23,7 @@ export const resolvers = {
     ...SourceChannelResolvers.Query,
     ...AdminChannelResolvers.Query,
     ...ShortResolvers.Query,
+    ...GoogleDriveResolvers.Query,
   },
 
   Mutation: {
@@ -29,6 +31,7 @@ export const resolvers = {
     ...SourceChannelResolvers.Mutation,
     ...AdminChannelResolvers.Mutation,
     ...ShortResolvers.Mutation,
+    ...GoogleDriveResolvers.Mutation,
   },
 
   Subscription,

@@ -32,6 +32,14 @@ export interface IShort extends Document {
   tags: string[];
   notes?: string;
   adminFeedback?: string;
+  // Google Drive fields
+  driveFileId?: string;                 // ID du fichier sur Google Drive
+  driveFileUrl?: string;                // Lien direct vers le fichier Drive
+  driveFolderId?: string;               // ID du dossier contenant le fichier
+  uploadedAt?: Date;                    // Date d'upload sur Drive
+  fileName?: string;                    // Nom du fichier uploadé
+  fileSize?: number;                    // Taille du fichier en bytes
+  mimeType?: string;                    // Type MIME du fichier
   createdAt: Date;
   updatedAt: Date;
 }
@@ -112,6 +120,33 @@ const ShortSchema = new Schema<IShort>(
       trim: true,
     },
     adminFeedback: {
+      type: String,
+      trim: true,
+    },
+    // Google Drive fields
+    driveFileId: {
+      type: String,
+      trim: true,
+    },
+    driveFileUrl: {
+      type: String,
+      trim: true,
+    },
+    driveFolderId: {
+      type: String,
+      trim: true,
+    },
+    uploadedAt: {
+      type: Date,
+    },
+    fileName: {
+      type: String,
+      trim: true,
+    },
+    fileSize: {
+      type: Number,
+    },
+    mimeType: {
       type: String,
       trim: true,
     },
