@@ -290,6 +290,51 @@ export class GoogleDriveService {
   }
 
   /**
+   * Supprime un fichier de Google Drive
+   */
+  async deleteFile(fileId: string, accessToken: string): Promise<void> {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const drive = google.drive({ version: 'v3', auth: this.oauth2Client });
+
+    await drive.files.delete({
+      fileId: fileId,
+    });
+  }
+
+  /**
+   * Télécharge un fichier depuis Google Drive
+   */
+  async downloadFile(fileId: string, accessToken: string): Promise<{
+    data: NodeJS.ReadableStream;
+    fileName: string;
+    mimeType: string;
+  }> {
+    this.oauth2Client.setCredentials({ access_token: accessToken });
+    const drive = google.drive({ version: 'v3', auth: this.oauth2Client });
+
+    // Obtenir les métadonnées du fichier
+    const metadata = await drive.files.get({
+      fileId: fileId,
+      fields: 'name, mimeType',
+    });
+
+    // Télécharger le fichier
+    const response = await drive.files.get(
+      {
+        fileId: fileId,
+        alt: 'media',
+      },
+      { responseType: 'stream' }
+    );
+
+    return {
+      data: response.data as unknown as NodeJS.ReadableStream,
+      fileName: metadata.data.name || 'video.mp4',
+      mimeType: metadata.data.mimeType || 'video/mp4',
+    };
+  }
+
+  /**
    * Déconnecte Google Drive (révoque les tokens)
    */
   async disconnectDrive(): Promise<void> {

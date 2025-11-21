@@ -1,8 +1,17 @@
 import { Request, Response } from 'express';
 import { googleDriveService } from '../services/googleDrive.service';
-import { Short, ShortStatus } from '../models/Short';
+import { NotificationService } from '../services/notification.service';
+import { Short, ShortStatus, IShort } from '../models/Short';
+import { IUser, UserRole } from '../models/User';
+import { User } from '../models/User';
 import multer from 'multer';
 import { AuthRequest } from '../middlewares/auth';
+import mongoose from 'mongoose';
+
+// Type pour un Short avec assignedTo populé
+interface IShortPopulated extends Omit<IShort, 'assignedTo'> {
+  assignedTo?: IUser | mongoose.Types.ObjectId;
+}
 
 // Configuration de Multer pour stocker les fichiers en mémoire
 const storage = multer.memoryStorage();
@@ -111,7 +120,7 @@ export const uploadVideo = async (req: Request, res: Response): Promise<void> =>
     }
 
     // Vérifier que le short existe
-    const short = await Short.findById(shortId).populate('assignedTo');
+    const short = await Short.findById(shortId).populate('assignedTo') as IShortPopulated | null;
     if (!short) {
       res.status(404).json({ error: 'Short not found' });
       return;
@@ -119,7 +128,20 @@ export const uploadVideo = async (req: Request, res: Response): Promise<void> =>
 
     // Vérifier que l'utilisateur est bien celui assigné au short
     const userId = (req as AuthRequest).user?.id;
-    if (!userId || short.assignedTo?.toString() !== userId) {
+
+    // Extraire l'ID depuis assignedTo (peut être un ObjectId ou un User populé)
+    let assignedToId: string | undefined;
+
+    if (short.assignedTo) {
+      if (short.assignedTo instanceof mongoose.Types.ObjectId) {
+        assignedToId = short.assignedTo.toString();
+      } else if (typeof short.assignedTo === 'object' && 'id' in short.assignedTo) {
+        const user = short.assignedTo as unknown as IUser;
+        assignedToId = user.id; // Utilise .id qui est déjà une string (getter Mongoose)
+      }
+    }
+
+    if (!userId || !assignedToId || assignedToId !== userId) {
       res.status(403).json({ error: 'Unauthorized to upload for this short' });
       return;
     }
@@ -134,12 +156,29 @@ export const uploadVideo = async (req: Request, res: Response): Promise<void> =>
     // Rafraîchir le token si nécessaire
     const accessToken = await googleDriveService.refreshAccessTokenIfNeeded(settings);
 
-    // Créer la structure de dossiers: ShortHub/[Vidéaste]/[Short-ID]
-    interface PopulatedUser {
-      username: string;
+    // Si un fichier existe déjà (re-upload pour REJECTED), le supprimer
+    if (short.driveFileId) {
+      try {
+        await googleDriveService.deleteFile(short.driveFileId, accessToken);
+      } catch (deleteError) {
+        console.error('Failed to delete old file:', deleteError);
+        // Continue même si la suppression échoue (le fichier n'existe peut-être plus)
+      }
     }
+
+    // Extraire le username du vidéaste
+    let videasteUsername: string;
+    if (short.assignedTo && typeof short.assignedTo === 'object' && '_id' in short.assignedTo) {
+      const user = short.assignedTo as unknown as IUser;
+      videasteUsername = user.username;
+    } else {
+      res.status(500).json({ error: 'Unable to determine videaste username' });
+      return;
+    }
+
+    // Créer la structure de dossiers: ShortHub/[Vidéaste]/[Short-ID]
     const videasteFolderId = await googleDriveService.createVideasteFolder(
-      (short.assignedTo as unknown as PopulatedUser).username,
+      videasteUsername,
       accessToken,
       settings.rootFolderId!
     );
@@ -172,6 +211,23 @@ export const uploadVideo = async (req: Request, res: Response): Promise<void> =>
 
     await short.save();
 
+    // Envoyer une notification à tous les admins
+    try {
+      const admins = await User.find({ role: UserRole.ADMIN, status: 'ACTIVE' });
+      const videasteUser = short.assignedTo as unknown as IUser;
+
+      for (const admin of admins) {
+        await NotificationService.createShortCompletedNotification(
+          admin.id,
+          short.id,
+          videasteUser.username
+        );
+      }
+    } catch (notifError) {
+      console.error('Failed to send notification:', notifError);
+      // Ne pas bloquer la réponse si la notification échoue
+    }
+
     res.json({
       success: true,
       message: 'Video uploaded successfully',
@@ -185,5 +241,73 @@ export const uploadVideo = async (req: Request, res: Response): Promise<void> =>
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to upload video' });
+  }
+};
+
+/**
+ * Télécharge une vidéo depuis Google Drive
+ */
+export const downloadVideo = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { shortId } = req.params;
+
+    // Vérifier que le short existe
+    const short = await Short.findById(shortId).populate('assignedTo') as IShortPopulated | null;
+    if (!short) {
+      res.status(404).json({ error: 'Short not found' });
+      return;
+    }
+
+    // Vérifier qu'un fichier est bien uploadé
+    if (!short.driveFileId) {
+      res.status(404).json({ error: 'No file uploaded for this short' });
+      return;
+    }
+
+    // Vérifier les permissions
+    const userId = (req as AuthRequest).user?.id;
+    const userRole = (req as AuthRequest).user?.role;
+
+    let assignedToId: string | undefined;
+    if (short.assignedTo) {
+      if (short.assignedTo instanceof mongoose.Types.ObjectId) {
+        assignedToId = short.assignedTo.toString();
+      } else if (typeof short.assignedTo === 'object' && 'id' in short.assignedTo) {
+        const user = short.assignedTo as unknown as IUser;
+        assignedToId = user.id;
+      }
+    }
+
+    // Seul l'admin ou le vidéaste assigné peut télécharger
+    if (userRole !== 'ADMIN' && (!userId || assignedToId !== userId)) {
+      res.status(403).json({ error: 'Unauthorized to download this video' });
+      return;
+    }
+
+    // Récupérer les credentials Google Drive
+    const settings = await googleDriveService.getStoredCredentials();
+    if (!settings || !settings.isConnected) {
+      res.status(400).json({ error: 'Google Drive is not connected' });
+      return;
+    }
+
+    // Rafraîchir le token si nécessaire
+    const accessToken = await googleDriveService.refreshAccessTokenIfNeeded(settings);
+
+    // Télécharger le fichier
+    const { data, fileName, mimeType } = await googleDriveService.downloadFile(
+      short.driveFileId,
+      accessToken
+    );
+
+    // Configurer les headers pour le téléchargement
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+    // Stream le fichier vers la réponse
+    data.pipe(res);
+  } catch (error) {
+    console.error('Download error:', error);
+    res.status(500).json({ error: 'Failed to download video' });
   }
 };
