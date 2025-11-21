@@ -98,10 +98,13 @@ async function startServer() {
   // Google Drive API routes
   app.use('/api/drive', googleDriveRoutes);
 
+  // Alias route for Google OAuth callback (for backward compatibility)
+  app.use('/api/auth/google', googleDriveRoutes);
+
   // GraphQL Middleware
   app.use(
     '/graphql',
-    bodyParser.json(),
+    bodyParser.json({ limit: '50mb' }),
     expressMiddleware(server, {
       context: async ({ req }) => {
         const token = req.headers.authorization;
