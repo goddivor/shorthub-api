@@ -8,12 +8,14 @@ export enum NotificationType {
   VIDEO_REJECTED = 'VIDEO_REJECTED',
   ACCOUNT_BLOCKED = 'ACCOUNT_BLOCKED',
   ACCOUNT_UNBLOCKED = 'ACCOUNT_UNBLOCKED',
+  SHORT_COMPLETED = 'SHORT_COMPLETED',
 }
 
 export interface INotification extends Document {
   recipientId: mongoose.Types.ObjectId;
   type: NotificationType;
   videoId?: mongoose.Types.ObjectId;
+  short?: mongoose.Types.ObjectId;
   message: string;
   sentViaEmail: boolean;
   sentViaWhatsApp: boolean;
@@ -42,6 +44,10 @@ const NotificationSchema = new Schema<INotification>(
     videoId: {
       type: Schema.Types.ObjectId,
       ref: 'Video',
+    },
+    short: {
+      type: Schema.Types.ObjectId,
+      ref: 'Short',
     },
     message: {
       type: String,
@@ -84,5 +90,6 @@ const NotificationSchema = new Schema<INotification>(
 // Indexes
 NotificationSchema.index({ recipientId: 1, read: 1, createdAt: -1 });
 NotificationSchema.index({ videoId: 1 });
+NotificationSchema.index({ short: 1 });
 
 export const Notification = mongoose.model<INotification>('Notification', NotificationSchema);

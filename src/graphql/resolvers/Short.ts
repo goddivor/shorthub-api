@@ -10,6 +10,7 @@ import { IVideo } from '../../models/Video';
 import { YouTubeService } from '../../services/youtube.service';
 import { NotificationService } from '../../services/notification.service';
 import EmailService from '../../services/email/EmailService';
+import { googleDriveService } from '../../services/googleDrive.service';
 import { GraphQLError } from 'graphql';
 import { requireAuth, requireAdmin } from '../../middlewares/auth';
 import { Types } from 'mongoose';
@@ -362,7 +363,7 @@ export const ShortResolvers = {
     },
 
     // Mettre à jour le statut d'un short
-    updateShortStatus: async (_: unknown, { input }: { input: { shortId: string; status: string; adminFeedback?: string } }, context: GraphQLContext) => {
+    updateShortStatus: async (_: unknown, { input }: { input: { shortId: string; status: string; adminFeedback?: string; deleteFile?: boolean } }, context: GraphQLContext) => {
       const currentUser = requireAuth(context);
 
       const short = await Short.findById(input.shortId);
@@ -383,6 +384,29 @@ export const ShortResolvers = {
       } else if (input.status === ShortStatus.REJECTED) {
         if (input.adminFeedback !== undefined) {
           short.adminFeedback = input.adminFeedback;
+        }
+
+        // Supprimer le fichier du Drive si demandé
+        if (input.deleteFile && short.driveFileId) {
+          try {
+            const settings = await googleDriveService.getStoredCredentials();
+            if (settings && settings.isConnected) {
+              const accessToken = await googleDriveService.refreshAccessTokenIfNeeded(settings);
+              await googleDriveService.deleteFile(short.driveFileId, accessToken);
+
+              // Réinitialiser les champs liés au fichier
+              short.driveFileId = undefined;
+              short.driveFileUrl = undefined;
+              short.driveFolderId = undefined;
+              short.fileName = undefined;
+              short.fileSize = undefined;
+              short.mimeType = undefined;
+              short.uploadedAt = undefined;
+            }
+          } catch (error) {
+            console.error('Failed to delete file from Drive:', error);
+            // Ne pas bloquer le rejet si la suppression échoue
+          }
         }
       } else if (input.status === ShortStatus.PUBLISHED) {
         short.publishedAt = new Date();

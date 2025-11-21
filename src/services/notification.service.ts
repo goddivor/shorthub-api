@@ -350,4 +350,33 @@ export class NotificationService {
       message,
     });
   }
+
+  /**
+   * Notification pour un short complété
+   */
+  static async createShortCompletedNotification(
+    recipientId: string,
+    shortId: string,
+    videasteUsername: string
+  ): Promise<void> {
+    const message = `✅ ${videasteUsername} a uploadé la vidéo pour le short.`;
+
+    await Notification.create({
+      recipientId: recipientId,
+      type: NotificationType.SHORT_COMPLETED,
+      short: shortId,
+      message,
+      sentViaEmail: false,
+      sentViaWhatsApp: false,
+      sentViaPlatform: true,
+      platformSentAt: new Date(),
+      read: false,
+    });
+
+    // Publier en temps réel via subscription
+    pubsub.publish('NOTIFICATION_RECEIVED', {
+      notificationReceived: { recipientId, shortId, message },
+      userId: recipientId,
+    });
+  }
 }
