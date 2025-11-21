@@ -124,6 +124,7 @@ export class NotificationService {
       VIDEO_REJECTED: '❌ Vidéo rejetée',
       ACCOUNT_BLOCKED: '🚫 Compte bloqué',
       ACCOUNT_UNBLOCKED: '✅ Compte débloqué',
+      SHORT_COMPLETED: '✅ Short complété',
     };
 
     return subjects[type] || 'Notification ShortHub';
